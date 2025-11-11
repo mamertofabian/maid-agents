@@ -48,3 +48,9 @@ exclude = ["tests*", "manifests*"]
 
 [tool.uv.sources]
 maid-runner = { path = "../maid-runner", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore:cannot collect test class.*TestDesigner:pytest.PytestCollectionWarning"
+]

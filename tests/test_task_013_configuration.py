@@ -38,8 +38,15 @@ def test_agent_config_instantiation():
 
 def test_agent_config_default_method():
     """Test AgentConfig.default() creates default configuration."""
-    config = AgentConfig.default()
+    # Explicitly call the default() classmethod
+    default_config = AgentConfig.default()
 
-    assert isinstance(config, AgentConfig)
-    assert isinstance(config.claude, ClaudeConfig)
-    assert isinstance(config.maid, MAIDConfig)
+    # Verify it returns AgentConfig instance
+    assert default_config is not None
+    assert isinstance(default_config, AgentConfig)
+    assert isinstance(default_config.claude, ClaudeConfig)
+    assert isinstance(default_config.maid, MAIDConfig)
+
+    # Verify default values
+    assert default_config.claude.model == "claude-sonnet-4-5-20250929"
+    assert default_config.maid.manifest_dir == "manifests"

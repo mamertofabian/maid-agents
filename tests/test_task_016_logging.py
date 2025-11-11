@@ -38,3 +38,14 @@ def test_setup_logging_with_different_levels():
 
     # Should not raise errors
     assert True
+
+
+def test_get_logger_function():
+    """Test get_logger function returns a logger instance."""
+    from maid_agents.utils.logging import get_logger
+    import logging
+
+    logger = get_logger("test_module")
+    assert logger is not None
+    assert isinstance(logger, logging.Logger)
+    assert logger.name == "maid_agents.test_module"

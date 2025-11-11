@@ -32,7 +32,7 @@ def test_build_from_manifest():
     """Test build_from_manifest loads manifest and creates context."""
     builder = ContextBuilder()
 
-    manifest_path = "maid_agents/manifests/task-001-orchestrator-skeleton.manifest.json"
+    manifest_path = "manifests/task-001-orchestrator-skeleton.manifest.json"
     context = builder.build_from_manifest(manifest_path)
 
     assert isinstance(context, AgentContext)
@@ -45,8 +45,8 @@ def test_load_file_contents():
     builder = ContextBuilder()
 
     file_paths = [
-        "maid_agents/maid_agents/__init__.py",
-        "maid_agents/maid_agents/__version__.py",
+        "maid_agents/__init__.py",
+        "maid_agents/__version__.py",
     ]
 
     contents = builder.load_file_contents(file_paths)

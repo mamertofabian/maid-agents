@@ -1,13 +1,14 @@
 {
   "goal": "Add comprehensive logging to orchestrator and agents for observability",
   "taskType": "create",
-  "creatableFiles": ["maid_agents/maid_agents/utils/logging.py"],
-  "readonlyFiles": ["maid_agents/tests/test_task_016_logging.py"],
+  "creatableFiles": ["maid_agents/utils/logging.py"],
+  "readonlyFiles": ["tests/test_task_016_logging.py"],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/utils/logging.py",
+    "file": "maid_agents/utils/logging.py",
     "contains": [
-      {"type": "function", "name": "setup_logging", "args": [{"name": "level", "type": "str"}], "returns": "None"}
+      {"type": "function", "name": "setup_logging", "args": [{"name": "level", "type": "str"}], "returns": "None"},
+      {"type": "function", "name": "get_logger", "args": [{"name": "name", "type": "str"}], "returns": "logging.Logger"}
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_016_logging.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_016_logging.py", "-v"]
 }
