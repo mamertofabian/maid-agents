@@ -701,7 +701,19 @@ class MAIDOrchestrator:
                 )
 
                 if not refactor_result["success"]:
-                    last_error = f"Refactoring failed: {refactor_result['error']}"
+                    # Check if error is systemic (e.g., timeout)
+                    error_msg = refactor_result.get("error", "Unknown error")
+                    is_systemic, systemic_msg = self._is_systemic_error(error_msg)
+                    if is_systemic:
+                        error_msg = f"Systemic error detected (cannot be fixed by refactoring):\n{systemic_msg}"
+                        logger.error(error_msg)
+                        log_phase_end("REFACTORING", success=False)
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": error_msg,
+                        }
+                    last_error = f"Refactoring failed: {error_msg}"
                     logger.error(last_error)
                     continue
 
@@ -812,6 +824,18 @@ class MAIDOrchestrator:
             (
                 "no tests ran",
                 "No tests found - check test file path and test discovery",
+            ),
+            (
+                "timed out",
+                "Operation timed out - check network connection or increase timeout",
+            ),
+            (
+                "Claude CLI timed out",
+                "Claude API timed out - check network connection or increase timeout",
+            ),
+            (
+                "TimeoutExpired",
+                "Command timed out - check system resources or increase timeout",
             ),
         ]
 
