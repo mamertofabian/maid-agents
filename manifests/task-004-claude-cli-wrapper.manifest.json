@@ -18,15 +18,35 @@
       },
       {
         "type": "function",
+        "name": "__init__",
+        "class": "ClaudeWrapper",
+        "args": [
+          {
+            "name": "mock_mode",
+            "type": "bool"
+          },
+          {
+            "name": "model",
+            "type": "str"
+          },
+          {
+            "name": "timeout",
+            "type": "int"
+          },
+          {
+            "name": "temperature",
+            "type": "float"
+          }
+        ],
+        "returns": "None"
+      },
+      {
+        "type": "function",
         "name": "generate",
         "class": "ClaudeWrapper",
         "args": [
           {
             "name": "prompt",
-            "type": "str"
-          },
-          {
-            "name": "model",
             "type": "str"
           }
         ],

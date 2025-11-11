@@ -19,11 +19,20 @@ from pathlib import Path
 
 @dataclass
 class CLIConfig:
-    """CLI configuration from file or defaults."""
+    """CLI configuration from file or defaults.
+
+    This unified configuration replaces the separate AgentConfig/ClaudeConfig/MAIDConfig
+    from settings.py to provide a single source of truth for all ccmaid settings.
+    """
 
     # CLI settings
     log_level: str = "INFO"
     mock_mode: bool = False
+
+    # Claude Code settings
+    claude_model: str = "claude-sonnet-4-5-20250929"
+    claude_timeout: int = 300
+    claude_temperature: float = 0.0
 
     # Iteration limits
     max_planning_iterations: int = 10
@@ -33,6 +42,9 @@ class CLIConfig:
     # Directories
     manifest_dir: str = "manifests"
     test_dir: str = "tests"
+
+    # MAID settings
+    use_manifest_chain: bool = True
 
 
 def load_config() -> CLIConfig:
@@ -82,6 +94,15 @@ def _merge_config(base_config: CLIConfig, config_path: Path) -> CLIConfig:
         if "mock_mode" in cli_section:
             base_config.mock_mode = cli_section["mock_mode"]
 
+        # Extract Claude settings
+        claude_section = toml_data.get("claude", {})
+        if "model" in claude_section:
+            base_config.claude_model = claude_section["model"]
+        if "timeout" in claude_section:
+            base_config.claude_timeout = claude_section["timeout"]
+        if "temperature" in claude_section:
+            base_config.claude_temperature = claude_section["temperature"]
+
         # Extract iteration limits
         iterations = toml_data.get("iterations", {})
         if "max_planning_iterations" in iterations:
@@ -101,6 +122,11 @@ def _merge_config(base_config: CLIConfig, config_path: Path) -> CLIConfig:
             base_config.manifest_dir = dirs["manifest_dir"]
         if "test_dir" in dirs:
             base_config.test_dir = dirs["test_dir"]
+
+        # Extract MAID settings
+        maid_section = toml_data.get("maid", {})
+        if "use_manifest_chain" in maid_section:
+            base_config.use_manifest_chain = maid_section["use_manifest_chain"]
 
     except Exception:
         # Silently ignore config file errors and use defaults
@@ -126,6 +152,12 @@ log_level = "INFO"
 # Use mock mode by default (useful for testing without API calls)
 mock_mode = false
 
+[claude]
+# Claude Code API settings
+model = "claude-sonnet-4-5-20250929"
+timeout = 300  # seconds
+temperature = 0.0  # 0.0 = deterministic, 1.0 = creative
+
 [iterations]
 # Maximum iterations for each phase
 max_planning_iterations = 10
@@ -136,4 +168,8 @@ max_refinement_iterations = 5
 # Default directories for manifests and tests
 manifest_dir = "manifests"
 test_dir = "tests"
+
+[maid]
+# Use manifest chain for validation (recommended)
+use_manifest_chain = true
 """

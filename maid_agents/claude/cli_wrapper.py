@@ -25,23 +25,32 @@ class ClaudeResponse:
 class ClaudeWrapper:
     """Wraps Claude Code headless CLI invocations."""
 
-    def __init__(self, mock_mode: bool = True):
+    def __init__(
+        self,
+        mock_mode: bool = True,
+        model: str = "claude-sonnet-4-5-20250929",
+        timeout: int = 300,
+        temperature: float = 0.0,
+    ) -> None:
         """Initialize Claude wrapper.
 
         Args:
             mock_mode: If True, returns mock responses without calling Claude
+            model: Claude model to use (e.g., "claude-sonnet-4-5-20250929")
+            timeout: Request timeout in seconds (default: 300)
+            temperature: Sampling temperature 0.0-1.0 (default: 0.0 for deterministic)
         """
         self.mock_mode = mock_mode
+        self.model = model
+        self.timeout = timeout
+        self.temperature = temperature
         self.logger = logger
 
-    def generate(
-        self, prompt: str, model: str = "claude-sonnet-4-5-20250929"
-    ) -> ClaudeResponse:
+    def generate(self, prompt: str) -> ClaudeResponse:
         """Generate response using Claude Code headless mode.
 
         Args:
             prompt: The prompt to send to Claude
-            model: Claude model to use
 
         Returns:
             ClaudeResponse with result or error
@@ -49,7 +58,9 @@ class ClaudeWrapper:
         start_time = time.time()
 
         # Log prompt (full at DEBUG level only)
-        self.logger.info(f"🤖 Calling Claude ({model})")
+        self.logger.info(
+            f"🤖 Calling Claude ({self.model}, timeout={self.timeout}s, temp={self.temperature})"
+        )
         self.logger.debug(f"Full prompt:\n{prompt}")
 
         if self.mock_mode:
@@ -73,7 +84,7 @@ class ClaudeWrapper:
         try:
             with LogContext("Waiting for Claude response...", style="dim"):
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=300
+                    cmd, capture_output=True, text=True, timeout=self.timeout
                 )
 
             elapsed = time.time() - start_time

@@ -33,12 +33,16 @@ def test_claude_wrapper_instantiation():
 
 def test_generate_method_signature():
     """Test generate method exists with correct signature."""
-    wrapper = ClaudeWrapper()
+    # Model is now passed to __init__, not generate()
+    wrapper = ClaudeWrapper(
+        mock_mode=True,
+        model="claude-sonnet-4-5-20250929",
+        timeout=300,
+        temperature=0.0,
+    )
 
     # Test with mock mode (won't actually call Claude)
-    response = wrapper.generate(
-        prompt="Test prompt", model="claude-sonnet-4-5-20250929"
-    )
+    response = wrapper.generate(prompt="Test prompt")
 
     assert isinstance(response, ClaudeResponse)
     assert hasattr(response, "success")

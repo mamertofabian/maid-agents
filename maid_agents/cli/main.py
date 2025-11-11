@@ -213,8 +213,13 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
     # Determine mock mode: CLI flag overrides config file
     mock_mode = args.mock if args.mock else config.mock_mode
 
-    # Create Claude wrapper and orchestrator
-    claude = ClaudeWrapper(mock_mode=mock_mode)
+    # Create Claude wrapper with config values and orchestrator
+    claude = ClaudeWrapper(
+        mock_mode=mock_mode,
+        model=config.claude_model,
+        timeout=config.claude_timeout,
+        temperature=config.claude_temperature,
+    )
     orchestrator = MAIDOrchestrator(claude=claude)
 
     if args.command == "run":
