@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MAID Agents is a Claude Code automation layer for the MAID (Manifest-driven AI Development) methodology. It provides CLI tools and agents that automate the four phases of MAID workflow by invoking Claude Code in headless mode.
 
+**📖 Important Reference:** When working with this project, always refer to `docs/maid_specs.md` for the complete MAID methodology specification and principles.
+
 ### Self-Improvement Architecture
 
 **CRITICAL: This project uses itself to improve itself.**
@@ -261,6 +263,41 @@ When making changes to this codebase:
 3. **Validate early and often** - Run `maid validate` before implementation
 4. **Honor the chain** - Use `--use-manifest-chain` for validation
 5. **Preserve public APIs** - All public methods/classes must be in manifests
+
+## Task Completion Checklist
+
+**⚠️ CRITICAL: Before declaring any task complete, you MUST run all of the following checks:**
+
+```bash
+# Code quality checks
+make lint          # Check for linting errors
+make format        # Format code (fixes formatting issues)
+make test          # Run all tests
+
+# MAID validation checks
+maid validate      # Validate all manifests (or specific manifest)
+maid test          # Run validation commands from manifests
+```
+
+**All checks must pass before a task is considered complete.** Do not skip any of these steps.
+
+### Code Quality Standards
+
+**🚫 Zero Tolerance for Workarounds and Band-Aid Solutions:**
+
+- **Be honest about code quality** - If something is broken, fix it properly rather than patching it
+- **No shortcuts** - Don't celebrate completion of broken or rotten code
+- **Proper solutions only** - Take the time to implement correct, maintainable solutions
+- **Address root causes** - Fix underlying issues, not just symptoms
+- **Test thoroughly** - Ensure all tests pass and code behaves correctly
+
+If you encounter issues during implementation:
+1. **Stop and assess** - Understand the root cause
+2. **Design properly** - Plan the correct solution
+3. **Implement correctly** - Build it right the first time
+4. **Validate completely** - Run all checks before declaring done
+
+**Remember:** A task is only complete when the code is correct, tested, validated, and maintainable. Premature celebration of incomplete or broken code leads to technical debt and future problems.
 
 ## Testing Strategy
 
