@@ -29,11 +29,20 @@ def test_cli_config_defaults():
 
 def test_load_config_with_no_files():
     """Test load_config returns defaults when no config files exist."""
-    config = load_config()
+    import os
 
-    assert isinstance(config, CLIConfig)
-    assert config.log_level == "INFO"
-    assert config.mock_mode is False
+    # Run in temporary directory to avoid loading project's .ccmaid.toml
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+            config = load_config()
+
+            assert isinstance(config, CLIConfig)
+            assert config.log_level == "INFO"
+            assert config.mock_mode is False
+        finally:
+            os.chdir(original_cwd)
 
 
 def test_merge_config_with_cli_section():

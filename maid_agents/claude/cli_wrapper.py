@@ -78,7 +78,16 @@ class ClaudeWrapper:
 
         # Real Claude invocation
         # Note: -p/--print flag is required for non-interactive output
-        cmd = ["claude", "--print", prompt, "--output-format", "json"]
+        # --permission-mode acceptEdits allows auto-approval of file operations
+        cmd = [
+            "claude",
+            "--print",
+            prompt,
+            "--output-format",
+            "json",
+            "--permission-mode",
+            "acceptEdits",
+        ]
         self.logger.debug(f"Running command: {' '.join(cmd[:3])}...")
 
         try:
