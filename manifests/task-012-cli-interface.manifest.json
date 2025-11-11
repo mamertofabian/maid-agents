@@ -6,8 +6,7 @@
     "pyproject.toml"
   ],
   "readonlyFiles": [
-    "tests/test_task_012_cli_interface.py",
-    "maid_agents/config/config_loader.py"
+    "tests/test_task_012_cli_interface.py"
   ],
   "expectedArtifacts": {
     "file": "maid_agents/cli/main.py",
