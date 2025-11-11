@@ -1,13 +1,31 @@
 {
-  "goal": "Add comprehensive logging to orchestrator and agents for observability",
-  "taskType": "create",
-  "creatableFiles": ["maid_agents/utils/logging.py"],
+  "goal": "Add comprehensive logging with colors and progress indicators to orchestrator and agents for observability",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/utils/logging.py",
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/agents/manifest_architect.py",
+    "maid_agents/agents/test_designer.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/agents/refiner.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/cli/main.py"
+  ],
   "readonlyFiles": ["tests/test_task_016_logging.py"],
   "expectedArtifacts": {
     "file": "maid_agents/utils/logging.py",
     "contains": [
       {"type": "function", "name": "setup_logging", "args": [{"name": "level", "type": "str"}], "returns": "None"},
-      {"type": "function", "name": "get_logger", "args": [{"name": "name", "type": "str"}], "returns": "logging.Logger"}
+      {"type": "function", "name": "get_logger", "args": [{"name": "name", "type": "str"}], "returns": "logging.Logger"},
+      {"type": "function", "name": "log_phase_start", "args": [{"name": "phase", "type": "str"}], "returns": "None"},
+      {"type": "function", "name": "log_phase_end", "args": [{"name": "phase", "type": "str"}, {"name": "success", "type": "bool"}], "returns": "None"},
+      {"type": "function", "name": "log_agent_action", "args": [{"name": "agent_name", "type": "str"}, {"name": "action", "type": "str"}, {"name": "details", "type": "Optional[str]"}], "returns": "None"},
+      {"type": "function", "name": "log_file_operation", "args": [{"name": "operation", "type": "str"}, {"name": "file_path", "type": "str"}], "returns": "None"},
+      {"type": "function", "name": "log_validation_result", "args": [{"name": "validation_type", "type": "str"}, {"name": "passed", "type": "bool"}, {"name": "errors", "type": "Optional[list]"}], "returns": "None"},
+      {"type": "function", "name": "log_iteration", "args": [{"name": "current", "type": "int"}, {"name": "max_iterations", "type": "int"}, {"name": "status", "type": "str"}], "returns": "None"},
+      {"type": "class", "name": "LogContext"}
     ]
   },
   "validationCommand": ["pytest", "tests/test_task_016_logging.py", "-v"]

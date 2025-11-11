@@ -1,5 +1,6 @@
 """Base Agent - Abstract base class for all MAID agents."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -9,7 +10,7 @@ class BaseAgent(ABC):
 
     def __init__(self):
         """Initialize base agent."""
-        pass
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod
     def execute(self) -> Dict[str, Any]:

@@ -7,6 +7,7 @@ from pathlib import Path
 from maid_agents.agents.refactorer import Refactorer
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.core.orchestrator import MAIDOrchestrator
+from maid_agents.utils.logging import setup_logging
 
 
 def main() -> None:
@@ -26,6 +27,14 @@ def main() -> None:
         "--mock",
         action="store_true",
         help="Use mock mode instead of real Claude CLI",
+    )
+
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set logging level (default: INFO)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -89,6 +98,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # Initialize logging with user-specified level
+    log_level = getattr(args, "log_level", "INFO")
+    setup_logging(level=log_level)
 
     if not args.command:
         parser.print_help()

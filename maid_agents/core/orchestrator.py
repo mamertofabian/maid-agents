@@ -15,6 +15,15 @@ from maid_agents.agents.refiner import Refiner
 from maid_agents.agents.test_designer import TestDesigner
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.core.validation_runner import ValidationRunner
+from maid_agents.utils.logging import (
+    LogContext,
+    log_agent_action,
+    log_file_operation,
+    log_iteration,
+    log_phase_end,
+    log_phase_start,
+    log_validation_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,27 +181,37 @@ class MAIDOrchestrator:
             Dict with planning loop results
         """
         self._state = WorkflowState.PLANNING
+        log_phase_start("PLANNING")
 
         # Determine next task number by counting existing manifests
         task_number = self._get_next_task_number()
+        logger.info(f"Planning task-{task_number:03d}: {goal}")
 
         iteration = 0
         last_error = None
 
         while iteration < max_iterations:
             iteration += 1
+            log_iteration(iteration, max_iterations, "Creating manifest and tests")
 
             # Step 1: Create manifest using ManifestArchitect
-            manifest_result = self.manifest_architect.create_manifest(
-                goal=goal, task_number=task_number
-            )
+            with LogContext(
+                f"Step 1: Creating manifest (task-{task_number:03d})", style="info"
+            ):
+                log_agent_action(
+                    "ManifestArchitect", "creating manifest", details=goal[:50]
+                )
+                manifest_result = self.manifest_architect.create_manifest(
+                    goal=goal, task_number=task_number
+                )
 
-            if not manifest_result["success"]:
-                last_error = f"Manifest creation failed: {manifest_result['error']}"
-                continue
+                if not manifest_result["success"]:
+                    last_error = f"Manifest creation failed: {manifest_result['error']}"
+                    logger.error(last_error)
+                    continue
 
-            manifest_path = manifest_result["manifest_path"]
-            manifest_data = manifest_result["manifest_data"]
+                manifest_path = manifest_result["manifest_path"]
+                manifest_data = manifest_result["manifest_data"]
 
             # Save manifest to disk (skip in dry_run mode)
             manifest_file = Path(manifest_path)
@@ -201,21 +220,28 @@ class MAIDOrchestrator:
                     manifest_file.parent.mkdir(parents=True, exist_ok=True)
                     with open(manifest_file, "w") as f:
                         json.dump(manifest_data, f, indent=2)
+                    log_file_operation("Created", str(manifest_file))
                 except Exception as e:
                     last_error = f"Failed to save manifest: {e}"
+                    logger.error(last_error)
                     continue
 
             # Step 2: Create tests using TestDesigner
-            test_result = self.test_designer.create_tests(
-                manifest_path=str(manifest_file)
-            )
+            with LogContext("Step 2: Creating behavioral tests", style="info"):
+                log_agent_action(
+                    "TestDesigner", "generating tests", details=str(manifest_file)
+                )
+                test_result = self.test_designer.create_tests(
+                    manifest_path=str(manifest_file)
+                )
 
-            if not test_result["success"]:
-                last_error = f"Test generation failed: {test_result['error']}"
-                continue
+                if not test_result["success"]:
+                    last_error = f"Test generation failed: {test_result['error']}"
+                    logger.error(last_error)
+                    continue
 
-            test_paths = test_result["test_paths"]
-            test_code = test_result["test_code"]
+                test_paths = test_result["test_paths"]
+                test_code = test_result["test_code"]
 
             # Save test files to disk (skip in dry_run mode)
             if not self.dry_run:
@@ -225,19 +251,33 @@ class MAIDOrchestrator:
                         test_file.parent.mkdir(parents=True, exist_ok=True)
                         with open(test_file, "w") as f:
                             f.write(test_code)
+                        log_file_operation("Created", str(test_file))
                 except Exception as e:
                     last_error = f"Failed to save test files: {e}"
+                    logger.error(last_error)
                     continue
 
             # Step 3: Run behavioral validation
-            # Validate that tests USE the declared artifacts (behavioral mode)
-            # With the validator fix, this now works without implementation file existing
-            validation_result = self._validate_behavioral_tests(
-                manifest_path=str(manifest_file)
-            )
+            with LogContext("Step 3: Running behavioral validation", style="info"):
+                # Validate that tests USE the declared artifacts (behavioral mode)
+                # With the validator fix, this now works without implementation file existing
+                validation_result = self._validate_behavioral_tests(
+                    manifest_path=str(manifest_file)
+                )
+
+                log_validation_result(
+                    "Behavioral",
+                    passed=validation_result["success"],
+                    errors=(
+                        [validation_result.get("error")]
+                        if not validation_result["success"]
+                        else None
+                    ),
+                )
 
             if validation_result["success"]:
                 # Planning loop succeeded!
+                log_phase_end("PLANNING", success=True)
                 return {
                     "success": True,
                     "manifest_path": str(manifest_file),
@@ -250,15 +290,19 @@ class MAIDOrchestrator:
                 last_error = (
                     f"Behavioral validation failed: {validation_result['error']}"
                 )
+                logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
         # Max iterations reached without success
+        error_msg = f"Planning loop failed after {max_iterations} iterations. Last error: {last_error}"
+        logger.error(error_msg)
+        log_phase_end("PLANNING", success=False)
         return {
             "success": False,
             "manifest_path": None,
             "test_paths": [],
             "iterations": iteration,
-            "error": f"Planning loop failed after {max_iterations} iterations. Last error: {last_error}",
+            "error": error_msg,
         }
 
     def _validate_behavioral_tests(self, manifest_path: str) -> dict:
@@ -345,9 +389,15 @@ class MAIDOrchestrator:
             Dict with implementation loop results
         """
         self._state = WorkflowState.IMPLEMENTING
+        log_phase_start("IMPLEMENTATION")
+        logger.info(f"Implementing manifest: {manifest_path}")
 
         # Step 1: Run tests initially (should fail - red phase of TDD)
-        test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+        with LogContext(
+            "Step 1: Running tests (expecting failure - RED phase)", style="info"
+        ):
+            test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+            log_validation_result("Initial Tests", passed=test_result.success)
 
         test_errors = test_result.stderr if not test_result.success else ""
 
@@ -356,19 +406,27 @@ class MAIDOrchestrator:
 
         while iteration < max_iterations:
             iteration += 1
+            log_iteration(iteration, max_iterations, "Generating code to pass tests")
 
             # Step 2: Generate code using Developer agent
             # Pass test errors from previous iteration (if any)
-            from maid_agents.agents.developer import Developer
+            with LogContext("Step 2: Generating implementation code", style="info"):
+                from maid_agents.agents.developer import Developer
 
-            developer = Developer(self.claude)
-            impl_result = developer.implement(
-                manifest_path=manifest_path, test_errors=test_errors
-            )
+                developer = Developer(self.claude)
+                log_agent_action(
+                    "Developer",
+                    "generating code",
+                    details=f"fixing {len(test_errors[:200])}+ char errors",
+                )
+                impl_result = developer.implement(
+                    manifest_path=manifest_path, test_errors=test_errors
+                )
 
-            if not impl_result["success"]:
-                last_error = f"Code generation failed: {impl_result['error']}"
-                continue
+                if not impl_result["success"]:
+                    last_error = f"Code generation failed: {impl_result['error']}"
+                    logger.error(last_error)
+                    continue
 
             # Step 3: Write generated code to files
             generated_code = impl_result.get("code", "")
@@ -376,10 +434,12 @@ class MAIDOrchestrator:
 
             if not generated_code:
                 last_error = "No code generated"
+                logger.warning(last_error)
                 continue
 
             if not files_modified:
                 last_error = "No files to modify"
+                logger.warning(last_error)
                 continue
 
             # Write code to the target file(s) (skip in dry_run mode)
@@ -392,6 +452,7 @@ class MAIDOrchestrator:
                             f"Generated code exceeds maximum file size "
                             f"({len(generated_code)} > {MAX_FILE_SIZE} bytes)"
                         )
+                        logger.error(last_error)
                         continue
 
                     # Validate path before writing
@@ -401,15 +462,25 @@ class MAIDOrchestrator:
                     with open(target_file, "w") as f:
                         f.write(generated_code)
 
+                    log_file_operation("Updated", str(target_file))
+
                 except ValueError as e:
                     last_error = f"Invalid path {files_modified[0]}: {e}"
+                    logger.error(last_error)
                     continue
                 except Exception as e:
                     last_error = f"Failed to write code to {files_modified[0]}: {e}"
+                    logger.error(last_error)
                     continue
 
             # Step 4: Run tests again
-            test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+            with LogContext(
+                "Step 3: Running tests (expecting success - GREEN phase)", style="info"
+            ):
+                test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+                log_validation_result(
+                    "Implementation Tests", passed=test_result.success
+                )
 
             # Check for systemic errors that cannot be fixed by changing implementation
             if not test_result.success:
@@ -417,20 +488,31 @@ class MAIDOrchestrator:
                 is_systemic, systemic_msg = self._is_systemic_error(test_output)
                 if is_systemic:
                     # Bail out immediately - this is not an implementation issue
+                    error_msg = f"Systemic error detected (cannot be fixed by changing implementation):\n{systemic_msg}"
+                    logger.error(error_msg)
+                    log_phase_end("IMPLEMENTATION", success=False)
                     return {
                         "success": False,
                         "iterations": iteration,
-                        "error": f"Systemic error detected (cannot be fixed by changing implementation):\n{systemic_msg}",
+                        "error": error_msg,
                     }
 
             if test_result.success:
                 # Tests pass! Now validate manifest compliance
-                validation_result = self.validation_runner.validate_manifest(
-                    manifest_path, use_chain=True
-                )
+                with LogContext(
+                    "Step 4: Validating manifest compliance", style="success"
+                ):
+                    validation_result = self.validation_runner.validate_manifest(
+                        manifest_path, use_chain=True
+                    )
+                    log_validation_result(
+                        "Manifest Compliance", passed=validation_result.success
+                    )
 
                 if validation_result.success:
                     # Success! Tests pass and manifest validates
+                    logger.info(f"Implementation complete in {iteration} iteration(s)!")
+                    log_phase_end("IMPLEMENTATION", success=True)
                     return {
                         "success": True,
                         "iterations": iteration,
@@ -442,18 +524,23 @@ class MAIDOrchestrator:
                     last_error = (
                         f"Manifest validation failed: {validation_result.stderr}"
                     )
+                    logger.warning(f"Iteration {iteration} failed, retrying...")
                     continue
             else:
                 # Tests still failing - extract errors for next iteration
                 test_errors = f"{test_result.stdout}\n{test_result.stderr}"
                 last_error = f"Tests failed: {'; '.join(test_result.errors)}"
+                logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
         # Max iterations reached without success
+        error_msg = f"Implementation loop failed after {max_iterations} iterations. Last error: {last_error}"
+        logger.error(error_msg)
+        log_phase_end("IMPLEMENTATION", success=False)
         return {
             "success": False,
             "iterations": iteration,
-            "error": f"Implementation loop failed after {max_iterations} iterations. Last error: {last_error}",
+            "error": error_msg,
         }
 
     def run_refinement_loop(
@@ -469,6 +556,10 @@ class MAIDOrchestrator:
         Returns:
             Dict with refinement loop results
         """
+        log_phase_start("REFINEMENT")
+        logger.info(f"Refining manifest: {manifest_path}")
+        logger.info(f"Goal: {refinement_goal}")
+
         # Lazy-initialize refiner if needed
         if not hasattr(self, "refiner"):
             self.refiner = Refiner(self.claude)
@@ -478,17 +569,27 @@ class MAIDOrchestrator:
 
         while iteration < max_iterations:
             iteration += 1
+            log_iteration(iteration, max_iterations, "Refining manifest and tests")
 
             # Step 1: Refine manifest and tests
-            refine_result = self.refiner.refine(
-                manifest_path=manifest_path,
-                refinement_goal=refinement_goal,
-                validation_feedback=last_error,
-            )
+            with LogContext(
+                "Step 1: Analyzing and improving manifest/tests", style="info"
+            ):
+                log_agent_action(
+                    "Refiner",
+                    "analyzing manifest and tests",
+                    details=refinement_goal[:50],
+                )
+                refine_result = self.refiner.refine(
+                    manifest_path=manifest_path,
+                    refinement_goal=refinement_goal,
+                    validation_feedback=last_error,
+                )
 
-            if not refine_result["success"]:
-                last_error = f"Refinement failed: {refine_result['error']}"
-                continue
+                if not refine_result["success"]:
+                    last_error = f"Refinement failed: {refine_result['error']}"
+                    logger.error(last_error)
+                    continue
 
             manifest_data = refine_result["manifest_data"]
             test_code_dict = refine_result["test_code"]
@@ -501,6 +602,7 @@ class MAIDOrchestrator:
                     manifest_file.parent.mkdir(parents=True, exist_ok=True)
                     with open(manifest_file, "w") as f:
                         json.dump(manifest_data, f, indent=2)
+                    log_file_operation("Updated", str(manifest_file))
 
                     # Write test files
                     for test_path, test_code in test_code_dict.items():
@@ -508,25 +610,34 @@ class MAIDOrchestrator:
                         test_file.parent.mkdir(parents=True, exist_ok=True)
                         with open(test_file, "w") as f:
                             f.write(test_code)
+                        log_file_operation("Updated", str(test_file))
 
                 except Exception as e:
                     last_error = f"Failed to write refined files: {e}"
+                    logger.error(last_error)
                     continue
 
             # Step 3: Structural validation
-            validation_result = self.validation_runner.validate_manifest(
-                manifest_path, use_chain=True
-            )
+            with LogContext("Step 2: Running structural validation", style="info"):
+                validation_result = self.validation_runner.validate_manifest(
+                    manifest_path, use_chain=True
+                )
+                log_validation_result("Structural", passed=validation_result.success)
 
             if not validation_result.success:
                 last_error = f"Structural validation failed: {validation_result.stderr}"
+                logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
             # Step 4: Behavioral test validation
-            behavioral_result = self._validate_behavioral_tests(manifest_path)
+            with LogContext("Step 3: Running behavioral validation", style="info"):
+                behavioral_result = self._validate_behavioral_tests(manifest_path)
+                log_validation_result("Behavioral", passed=behavioral_result["success"])
 
             if behavioral_result["success"]:
                 # Refinement complete - both validations pass!
+                logger.info(f"Refinement complete in {iteration} iteration(s)!")
+                log_phase_end("REFINEMENT", success=True)
                 return {
                     "success": True,
                     "iterations": iteration,
@@ -536,13 +647,17 @@ class MAIDOrchestrator:
             else:
                 # Behavioral validation failed - provide feedback for next iteration
                 last_error = behavioral_result["output"]
+                logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
         # Max iterations reached without success
+        error_msg = f"Refinement loop failed after {max_iterations} iterations. Last error: {last_error}"
+        logger.error(error_msg)
+        log_phase_end("REFINEMENT", success=False)
         return {
             "success": False,
             "iterations": iteration,
-            "error": f"Refinement loop failed after {max_iterations} iterations. Last error: {last_error}",
+            "error": error_msg,
         }
 
     def _is_systemic_error(self, test_output: str) -> tuple[bool, str]:

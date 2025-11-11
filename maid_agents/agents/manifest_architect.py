@@ -36,13 +36,19 @@ class ManifestArchitect(BaseAgent):
         Returns:
             Dict with manifest data and path
         """
+        self.logger.debug(
+            f"Creating manifest for task-{task_number:03d}: {goal[:60]}..."
+        )
+
         # Build prompt for Claude
         prompt = self._build_manifest_prompt(goal, task_number)
 
         # Generate manifest using Claude
+        self.logger.debug("Calling Claude to generate manifest...")
         response = self.claude.generate(prompt)
 
         if not response.success:
+            self.logger.error(f"Claude generation failed: {response.error}")
             return {
                 "success": False,
                 "error": response.error,
@@ -57,6 +63,7 @@ class ManifestArchitect(BaseAgent):
             manifest_data = json.loads(json_text)
             manifest_path = f"manifests/task-{task_number:03d}.manifest.json"
 
+            self.logger.info(f"Successfully created manifest: {manifest_path}")
             return {
                 "success": True,
                 "manifest_path": manifest_path,
@@ -64,9 +71,11 @@ class ManifestArchitect(BaseAgent):
                 "error": None,
             }
         except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse manifest JSON: {e}. Response preview: {response.result[:200]}"
+            self.logger.error(error_msg)
             return {
                 "success": False,
-                "error": f"Failed to parse manifest JSON: {e}. Response preview: {response.result[:200]}",
+                "error": error_msg,
                 "manifest_path": None,
                 "manifest_data": None,
             }

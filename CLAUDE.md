@@ -50,6 +50,36 @@ black maid_agents/        # Format code
 ruff check maid_agents/   # Lint code
 ```
 
+**Makefile Convenience Commands:**
+
+The project includes a `Makefile` with convenient shortcuts for common development tasks:
+
+```bash
+# Show all available commands
+make help
+
+# Install package in editable mode
+make install
+
+# Install development dependencies
+make install-dev
+
+# Run all tests
+make test
+
+# Validate all manifests (with manifest chain)
+make validate
+
+# Run linting checks
+make lint
+
+# Run linting with auto-fix
+make lint-fix
+
+# Format code
+make format
+```
+
 ### Using ccmaid CLI
 
 ```bash
