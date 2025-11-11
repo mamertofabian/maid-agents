@@ -4,10 +4,48 @@ import argparse
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
 from maid_agents.agents.refactorer import Refactorer
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.config_loader import load_config, get_config_example
 from maid_agents.core.orchestrator import MAIDOrchestrator
 from maid_agents.utils.logging import setup_logging
+
+console = Console()
+
+
+def _print_error(message: str, suggestion: str = None, details: str = None) -> None:
+    """Print a formatted error message with optional suggestions.
+
+    Args:
+        message: The main error message
+        suggestion: Optional suggestion for how to fix the issue
+        details: Optional additional details
+    """
+    console.print(f"[bold red]❌ Error:[/bold red] {message}")
+
+    if details:
+        console.print(f"[dim]{details}[/dim]")
+
+    if suggestion:
+        console.print(f"[yellow]💡 Suggestion:[/yellow] {suggestion}")
+
+
+def _print_success(message: str, details: dict = None) -> None:
+    """Print a formatted success message.
+
+    Args:
+        message: The main success message
+        details: Optional dictionary of details to display
+    """
+    console.print(f"[bold green]✅ {message}[/bold green]")
+
+    if details:
+        for key, value in details.items():
+            console.print(f"  [cyan]{key}:[/cyan] {value}")
 
 
 def main() -> None:
@@ -15,6 +53,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="ccmaid",
         description="Claude Code MAID Agent - Automates MAID workflow",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run full workflow with mock mode
+  ccmaid --mock run "Add user authentication"
+
+  # Create manifest and tests
+  ccmaid plan "Add user authentication" --max-iterations 10
+
+  # Implement from manifest
+  ccmaid implement manifests/task-042.manifest.json
+
+  # Refactor existing code
+  ccmaid refactor manifests/task-042.manifest.json
+
+  # Refine manifest and tests
+  ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
+
+For more information, visit: https://github.com/mamertofabian/maid-agents
+        """,
     )
 
     parser.add_argument(
@@ -24,17 +82,37 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--config-example",
+        action="store_true",
+        help="Print example configuration file and exit",
+    )
+
+    parser.add_argument(
         "--mock",
         action="store_true",
-        help="Use mock mode instead of real Claude CLI",
+        help="Use mock mode instead of real Claude CLI (overrides config file)",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output (sets log level to DEBUG)",
+    )
+
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress non-essential output (sets log level to ERROR)",
     )
 
     parser.add_argument(
         "--log-level",
         type=str,
-        default="INFO",
+        default=None,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set logging level (default: INFO)",
+        help="Set logging level explicitly (overrides -v/-q)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -55,8 +133,8 @@ def main() -> None:
     plan_parser.add_argument(
         "--max-iterations",
         type=int,
-        default=10,
-        help="Maximum planning iterations (default: 10)",
+        default=None,
+        help="Maximum planning iterations (default: from config or 10)",
     )
 
     # Implement subcommand
@@ -68,8 +146,8 @@ def main() -> None:
     implement_parser.add_argument(
         "--max-iterations",
         type=int,
-        default=20,
-        help="Maximum implementation iterations (default: 20)",
+        default=None,
+        help="Maximum implementation iterations (default: from config or 20)",
     )
 
     # Refactor subcommand
@@ -93,115 +171,284 @@ def main() -> None:
     refine_parser.add_argument(
         "--max-iterations",
         type=int,
-        default=5,
-        help="Maximum refinement iterations (default: 5)",
+        default=None,
+        help="Maximum refinement iterations (default: from config or 5)",
     )
 
     args = parser.parse_args()
 
-    # Initialize logging with user-specified level
-    log_level = getattr(args, "log_level", "INFO")
+    # Handle --config-example flag
+    if hasattr(args, "config_example") and args.config_example:
+        console.print(
+            Panel(
+                get_config_example(),
+                title="📄 Example .ccmaid.toml Configuration",
+                border_style="cyan",
+            )
+        )
+        console.print(
+            "\n[dim]Save this as .ccmaid.toml in your project root or ~/.ccmaid.toml for user defaults[/dim]"
+        )
+        sys.exit(0)
+
+    # Load configuration from files (project > user > defaults)
+    config = load_config()
+
+    # Determine log level: CLI args override config file
+    if args.log_level:
+        log_level = args.log_level
+    elif args.verbose:
+        log_level = "DEBUG"
+    elif args.quiet:
+        log_level = "ERROR"
+    else:
+        log_level = config.log_level  # Use config file default
+
     setup_logging(level=log_level)
 
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
+    # Determine mock mode: CLI flag overrides config file
+    mock_mode = args.mock if args.mock else config.mock_mode
+
     # Create Claude wrapper and orchestrator
-    # Default to REAL Claude (mock_mode=False) unless --mock flag is used
-    claude = ClaudeWrapper(mock_mode=getattr(args, "mock", False))
+    claude = ClaudeWrapper(mock_mode=mock_mode)
     orchestrator = MAIDOrchestrator(claude=claude)
 
     if args.command == "run":
-        print(f"🚀 Running full MAID workflow for: {args.goal}")
-        result = orchestrator.run_full_workflow(args.goal)
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Running full MAID workflow[/bold]\n[dim]Goal:[/dim] {args.goal}",
+                    title="🚀 MAID Agent",
+                    border_style="blue",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Running workflow...", total=None)
+            result = orchestrator.run_full_workflow(args.goal)
+
         if result.success:
-            print(f"✅ {result.message}")
-            print(f"📄 Manifest: {result.manifest_path}")
+            _print_success(
+                result.message,
+                details={
+                    "Manifest": result.manifest_path,
+                },
+            )
             sys.exit(0)
         else:
-            print(f"❌ {result.message}")
+            _print_error(
+                result.message,
+                suggestion="Try running with --verbose to see detailed logs, or use --mock for testing",
+            )
             sys.exit(1)
 
     elif args.command == "plan":
-        print(f"📋 Planning: {args.goal}")
-        result = orchestrator.run_planning_loop(
-            goal=args.goal, max_iterations=args.max_iterations
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else config.max_planning_iterations
         )
+
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Creating MAID manifest and tests[/bold]\n[dim]Goal:[/dim] {args.goal}",
+                    title="📋 Planning Phase",
+                    border_style="cyan",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Planning...", total=None)
+            result = orchestrator.run_planning_loop(
+                goal=args.goal, max_iterations=max_iterations
+            )
+
         if result["success"]:
-            print(f"✅ Planning complete in {result['iterations']} iteration(s)")
-            print(f"📄 Manifest: {result['manifest_path']}")
-            print(f"🧪 Tests: {', '.join(result['test_paths'])}")
+            _print_success(
+                f"Planning complete in {result['iterations']} iteration(s)",
+                details={
+                    "Manifest": result["manifest_path"],
+                    "Tests": ", ".join(result["test_paths"]),
+                },
+            )
             sys.exit(0)
         else:
-            print(f"❌ Planning failed after {result['iterations']} iteration(s)")
-            print(f"Error: {result['error']}")
+            _print_error(
+                f"Planning failed after {result['iterations']} iteration(s)",
+                details=result.get("error"),
+                suggestion="Try increasing --max-iterations or refining the goal description",
+            )
             sys.exit(1)
 
     elif args.command == "implement":
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else config.max_implementation_iterations
+        )
+
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
-            print(f"❌ Manifest not found: {manifest_path}")
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion='Make sure the manifest exists. Try running: ccmaid plan "<your goal>" first',
+            )
             sys.exit(1)
 
-        print(f"⚙️ Implementing: {manifest_path}")
-        result = orchestrator.run_implementation_loop(
-            manifest_path=manifest_path, max_iterations=args.max_iterations
-        )
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Implementing code from manifest[/bold]\n[dim]Manifest:[/dim] {manifest_path}",
+                    title="⚙️ Implementation Phase",
+                    border_style="green",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Implementing...", total=None)
+            result = orchestrator.run_implementation_loop(
+                manifest_path=manifest_path, max_iterations=max_iterations
+            )
+
         if result["success"]:
-            print(f"✅ Implementation complete in {result['iterations']} iteration(s)")
-            print(f"📝 Files modified: {', '.join(result['files_modified'])}")
+            _print_success(
+                f"Implementation complete in {result['iterations']} iteration(s)",
+                details={
+                    "Files modified": ", ".join(result["files_modified"]),
+                },
+            )
             sys.exit(0)
         else:
-            print(f"❌ Implementation failed after {result['iterations']} iteration(s)")
-            print(f"Error: {result['error']}")
+            _print_error(
+                f"Implementation failed after {result['iterations']} iteration(s)",
+                details=result.get("error"),
+                suggestion="Review test failures and consider increasing --max-iterations or refining the manifest",
+            )
             sys.exit(1)
 
     elif args.command == "refactor":
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
-            print(f"❌ Manifest not found: {manifest_path}")
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion="Ensure the manifest file exists and the path is correct",
+            )
             sys.exit(1)
 
-        print(f"✨ Refactoring: {manifest_path}")
-        refactorer = Refactorer(claude)
-        result = refactorer.refactor(manifest_path=manifest_path)
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Refactoring code for quality improvements[/bold]\n[dim]Manifest:[/dim] {manifest_path}",
+                    title="✨ Refactoring Phase",
+                    border_style="magenta",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Refactoring...", total=None)
+            refactorer = Refactorer(claude)
+            result = refactorer.refactor(manifest_path=manifest_path)
 
         if result["success"]:
-            print("✅ Refactoring complete!")
-            print(f"📝 Files affected: {', '.join(result['files_affected'])}")
-            print(f"💡 Improvements ({len(result['improvements'])}):")
+            console.print("[bold green]✅ Refactoring complete![/bold green]")
+            console.print(
+                f"  [cyan]Files affected:[/cyan] {', '.join(result['files_affected'])}"
+            )
+            console.print(
+                f"  [cyan]Improvements:[/cyan] ({len(result['improvements'])})"
+            )
             for i, improvement in enumerate(result["improvements"], 1):
-                print(f"   {i}. {improvement}")
+                console.print(f"    {i}. {improvement}")
             sys.exit(0)
         else:
-            print("❌ Refactoring failed")
-            print(f"Error: {result['error']}")
+            _print_error(
+                "Refactoring failed",
+                details=result.get("error"),
+                suggestion="Check if all tests are passing before refactoring",
+            )
             sys.exit(1)
 
     elif args.command == "refine":
-        manifest_path = args.manifest_path
-        if not Path(manifest_path).exists():
-            print(f"❌ Manifest not found: {manifest_path}")
-            sys.exit(1)
-
-        print(f"🔍 Refining: {manifest_path}")
-        print(f"🎯 Goal: {args.goal}")
-        result = orchestrator.run_refinement_loop(
-            manifest_path=manifest_path,
-            refinement_goal=args.goal,
-            max_iterations=args.max_iterations,
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else config.max_refinement_iterations
         )
 
+        manifest_path = args.manifest_path
+        if not Path(manifest_path).exists():
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion="Ensure the manifest file exists and the path is correct",
+            )
+            sys.exit(1)
+
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Refining manifest and tests[/bold]\n[dim]Manifest:[/dim] {manifest_path}\n[dim]Goal:[/dim] {args.goal}",
+                    title="🔍 Refinement Phase",
+                    border_style="yellow",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Refining...", total=None)
+            result = orchestrator.run_refinement_loop(
+                manifest_path=manifest_path,
+                refinement_goal=args.goal,
+                max_iterations=max_iterations,
+            )
+
         if result["success"]:
-            print(f"✅ Refinement complete in {result['iterations']} iteration(s)!")
-            print(f"💡 Improvements ({len(result.get('improvements', []))}):")
-            for i, improvement in enumerate(result.get("improvements", []), 1):
-                print(f"   {i}. {improvement}")
+            console.print(
+                f"[bold green]✅ Refinement complete in {result['iterations']} iteration(s)![/bold green]"
+            )
+            improvements = result.get("improvements", [])
+            if improvements:
+                console.print(f"  [cyan]Improvements:[/cyan] ({len(improvements)})")
+                for i, improvement in enumerate(improvements, 1):
+                    console.print(f"    {i}. {improvement}")
             sys.exit(0)
         else:
-            print(f"❌ Refinement failed after {result['iterations']} iteration(s)")
-            print(f"Error: {result['error']}")
+            _print_error(
+                f"Refinement failed after {result['iterations']} iteration(s)",
+                details=result.get("error"),
+                suggestion="Try a more specific refinement goal or increase --max-iterations",
+            )
             sys.exit(1)
 
     else:

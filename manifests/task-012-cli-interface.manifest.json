@@ -1,13 +1,22 @@
 {
-  "goal": "Create CLI interface with ccmaid command supporting run, plan, and implement subcommands",
+  "goal": "Create CLI interface with ccmaid command supporting run, plan, implement, refactor, and refine subcommands with configuration file support",
   "taskType": "edit",
-  "editableFiles": ["maid_agents/maid_agents/cli/main.py"],
-  "readonlyFiles": ["maid_agents/tests/test_task_012_cli_interface.py"],
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "pyproject.toml"
+  ],
+  "creatableFiles": [
+    "maid_agents/config/config_loader.py",
+    "tests/test_config_loader.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_012_cli_interface.py"
+  ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/cli/main.py",
+    "file": "maid_agents/cli/main.py",
     "contains": [
       {"type": "function", "name": "main", "args": [], "returns": "None"}
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_012_cli_interface.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_012_cli_interface.py", "tests/test_config_loader.py", "-v"]
 }
