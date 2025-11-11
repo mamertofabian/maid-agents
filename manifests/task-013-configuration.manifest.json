@@ -1,16 +1,18 @@
 {
-  "goal": "Create configuration system with AgentConfig, ClaudeConfig, and MAIDConfig classes",
-  "taskType": "edit",
-  "editableFiles": ["maid_agents/config/settings.py"],
+  "goal": "Create unified configuration system with CLIConfig supporting TOML file loading for all MAID Agent settings",
+  "taskType": "create",
+  "creatableFiles": [
+    "maid_agents/config/config_loader.py",
+    "tests/test_config_loader.py"
+  ],
   "readonlyFiles": ["tests/test_task_013_configuration.py"],
   "expectedArtifacts": {
-    "file": "maid_agents/config/settings.py",
+    "file": "maid_agents/config/config_loader.py",
     "contains": [
-      {"type": "class", "name": "ClaudeConfig"},
-      {"type": "class", "name": "MAIDConfig"},
-      {"type": "class", "name": "AgentConfig"},
-      {"type": "function", "name": "default", "class": "AgentConfig", "args": [], "returns": "AgentConfig"}
+      {"type": "class", "name": "CLIConfig"},
+      {"type": "function", "name": "load_config", "args": [], "returns": "CLIConfig"},
+      {"type": "function", "name": "get_config_example", "args": [], "returns": "str"}
     ]
   },
-  "validationCommand": ["pytest", "tests/test_task_013_configuration.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_013_configuration.py", "tests/test_config_loader.py", "-v"]
 }
