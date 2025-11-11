@@ -837,6 +837,14 @@ class MAIDOrchestrator:
                 "TimeoutExpired",
                 "Command timed out - check system resources or increase timeout",
             ),
+            (
+                "output-format=stream-json requires --verbose",
+                "Claude CLI configuration error - check CLI wrapper settings",
+            ),
+            (
+                "When using --print, --output-format=stream-json requires --verbose",
+                "Claude CLI configuration error - check CLI wrapper settings",
+            ),
         ]
 
         for pattern, message in systemic_patterns:
