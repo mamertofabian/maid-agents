@@ -62,7 +62,10 @@ class ManifestArchitect(BaseAgent):
         try:
             json_text = self._extract_json_from_response(response.result)
             manifest_data = json.loads(json_text)
-            manifest_path = f"manifests/task-{task_number:03d}.manifest.json"
+
+            # Generate descriptive filename from goal
+            slug = self._generate_slug(goal)
+            manifest_path = f"manifests/task-{task_number:03d}-{slug}.manifest.json"
 
             self.logger.info(f"Successfully created manifest: {manifest_path}")
             return {
@@ -80,6 +83,39 @@ class ManifestArchitect(BaseAgent):
                 "manifest_path": None,
                 "manifest_data": None,
             }
+
+    def _generate_slug(self, goal: str) -> str:
+        """Generate a URL-friendly slug from goal description.
+
+        Args:
+            goal: High-level goal description
+
+        Returns:
+            Slug suitable for filenames (lowercase, hyphens, max 50 chars)
+        """
+        import re
+
+        # Convert to lowercase
+        slug = goal.lower()
+
+        # Remove special characters, keep only alphanumeric and spaces
+        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+
+        # Replace spaces and multiple hyphens with single hyphen
+        slug = re.sub(r"[\s-]+", "-", slug)
+
+        # Remove leading/trailing hyphens
+        slug = slug.strip("-")
+
+        # Limit to 50 characters for reasonable filename length
+        if len(slug) > 50:
+            # Try to cut at word boundary
+            slug = slug[:50]
+            last_hyphen = slug.rfind("-")
+            if last_hyphen > 30:  # If there's a reasonable word boundary
+                slug = slug[:last_hyphen]
+
+        return slug
 
     def _extract_json_from_response(self, response: str) -> str:
         """Extract JSON from Claude response, handling markdown code fences.

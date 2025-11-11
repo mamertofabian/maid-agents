@@ -69,9 +69,12 @@ def test_create_manifest_generates_correct_path():
     result = architect.create_manifest(goal="Create new feature", task_number=42)
 
     # When success is False (due to mock returning non-JSON),
-    # manifest_path should be None or the expected path
+    # manifest_path should be None or the expected path with descriptive slug
     if result["success"]:
-        assert result["manifest_path"] == "manifests/task-042.manifest.json"
+        assert (
+            result["manifest_path"]
+            == "manifests/task-042-create-new-feature.manifest.json"
+        )
 
 
 def test_create_manifest_handles_invalid_json():
