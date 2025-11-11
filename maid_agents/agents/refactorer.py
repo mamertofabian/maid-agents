@@ -100,12 +100,41 @@ class Refactorer(BaseAgent):
         """
         contents = {}
         for file_path in file_paths:
+            # Try original path first
             try:
                 with open(file_path) as f:
                     contents[file_path] = f.read()
+                    continue
             except FileNotFoundError:
-                contents[file_path] = f"# File not found: {file_path}"
+                pass
+
+            # Try normalized path (remove duplicate maid_agents/ prefix)
+            normalized_path = self._normalize_path(file_path)
+            if normalized_path != file_path:
+                try:
+                    with open(normalized_path) as f:
+                        contents[file_path] = f.read()
+                        continue
+                except FileNotFoundError:
+                    pass
+
+            # File not found with either path
+            contents[file_path] = f"# File not found: {file_path}"
         return contents
+
+    def _normalize_path(self, path: str) -> str:
+        """Normalize file path by removing duplicate maid_agents/ prefix.
+
+        Args:
+            path: Original file path
+
+        Returns:
+            Normalized path with duplicate prefix removed
+        """
+        # Remove duplicate maid_agents/maid_agents/ prefix
+        if path.startswith("maid_agents/maid_agents/"):
+            return path.replace("maid_agents/maid_agents/", "maid_agents/", 1)
+        return path
 
     def _extract_improvements(self, response: str) -> list:
         """Extract list of improvements from Claude's response.
