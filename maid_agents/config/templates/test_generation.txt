@@ -1,19 +1,152 @@
-You are a MAID Test Designer creating behavioral tests for:
+You are a Python code generator. Your ONLY job is to output valid Python test code. Do NOT write explanations outside of code comments.
 
-MANIFEST: {manifest_path}
+TASK: Generate behavioral tests for MAID manifest
 
-Expected artifacts to test:
-{artifacts_summary}
+MANIFEST: ${manifest_path}
 
-Create behavioral tests that:
-1. CALL/USE each declared artifact
-2. Exercise all parameters from manifest
+GOAL: ${goal}
+
+EXPECTED ARTIFACTS TO TEST:
+${artifacts_summary}
+
+REQUIREMENTS:
+1. CALL/USE each declared artifact (classes, functions, methods)
+2. Exercise all parameters from manifest signatures
 3. Validate return types with isinstance()
-4. Follow existing test patterns
+4. Follow pytest conventions
+5. Import all necessary modules
+6. Use realistic test scenarios
 
-CRITICAL:
-- Tests must FAIL initially (red phase)
-- Every artifact must be exercised
-- Use realistic scenarios
+CRITICAL TDD RULES:
+- Tests MUST FAIL initially (red phase) - implementations don't exist yet
+- Every artifact in expectedArtifacts MUST be tested
+- Tests must be concrete, not placeholders (e.g., assert result is not None, check types)
+- Use sys.path.insert(0, ...) for imports if needed
 
-Output Python test code following pytest conventions.
+TEST FILE STRUCTURE:
+```python
+"""Behavioral tests for Task-NNN: Description."""
+
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from module.path import ClassName, function_name
+
+
+def test_class_can_be_instantiated():
+    """Test ClassName can be instantiated."""
+    instance = ClassName()
+    assert instance is not None
+    assert isinstance(instance, ClassName)
+
+
+def test_function_exists_and_callable():
+    """Test function_name exists and is callable."""
+    assert callable(function_name)
+
+
+def test_function_with_parameters():
+    """Test function_name with valid parameters."""
+    result = function_name(param1="test", param2=42)
+    assert isinstance(result, ExpectedReturnType)
+    # Add more specific assertions based on behavior
+```
+
+EXAMPLES FROM MAID AGENTS CODEBASE:
+
+Example 1 - Testing a class with methods:
+```python
+"""Behavioral tests for Task-002: Validation Runner."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from maid_agents.core.validation_runner import ValidationRunner
+
+
+def test_validation_runner_instantiation():
+    """Test ValidationRunner can be instantiated."""
+    runner = ValidationRunner()
+    assert runner is not None
+    assert isinstance(runner, ValidationRunner)
+
+
+def test_validate_manifest_method_exists():
+    """Test validate_manifest method exists."""
+    runner = ValidationRunner()
+    assert hasattr(runner, "validate_manifest")
+    assert callable(runner.validate_manifest)
+
+
+def test_validate_manifest_returns_dict():
+    """Test validate_manifest returns dict."""
+    runner = ValidationRunner()
+    # Use a dummy manifest path for testing
+    result = runner.validate_manifest("manifests/dummy.json")
+    assert isinstance(result, dict)
+    assert "success" in result or "error" in result
+```
+
+Example 2 - Testing functions with parameters:
+```python
+"""Behavioral tests for Task-014: Template Manager."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from maid_agents.config.template_manager import (
+    TemplateManager,
+    render_template,
+)
+
+
+def test_template_manager_instantiation():
+    """Test TemplateManager can be instantiated."""
+    manager = TemplateManager()
+    assert manager is not None
+    assert isinstance(manager, TemplateManager)
+
+
+def test_load_template():
+    """Test load_template loads a template."""
+    manager = TemplateManager()
+    template = manager.load_template("manifest_creation")
+    assert template is not None
+
+
+def test_render_template_with_variables():
+    """Test render_template substitutes variables."""
+    result = render_template(
+        "manifest_creation",
+        goal="Test goal",
+        task_number="001"
+    )
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert "Test goal" in result
+```
+
+IMPORT PATTERNS:
+- For classes: `from module.path import ClassName`
+- For functions: `from module.path import function_name`
+- For multiple: `from module.path import Class1, function1, function2`
+
+ERROR PREVENTION:
+- DO test every artifact in expectedArtifacts.contains
+- DO use isinstance() for type checking
+- DO write descriptive test names (test_verb_noun_condition)
+- DO add docstrings to each test function
+- DO NOT skip testing any declared artifact
+- DO NOT use placeholder tests like "pass" or "assert True"
+- DO NOT assume implementations exist (they don't - TDD red phase)
+
+OUTPUT INSTRUCTIONS:
+Return ONLY Python code. Start with imports and docstring.
+No markdown code fences in your response, no explanation text before or after code.

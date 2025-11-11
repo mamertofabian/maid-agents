@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.template_manager import get_template_manager
 
 
 class Refactorer(BaseAgent):
@@ -136,7 +137,7 @@ class Refactorer(BaseAgent):
         return improvements
 
     def _build_refactor_prompt(
-        self, manifest_data: Dict[str, Any], file_contents: Dict[str, str]
+        self, manifest_data: Dict[str, Any], file_contents: Dict[str, Any]
     ) -> str:
         """Build prompt for Claude to refactor code.
 
@@ -157,39 +158,9 @@ class Refactorer(BaseAgent):
             ]
         )
 
-        return f"""You are a code refactoring expert. Your task is to improve code quality while maintaining all functionality and tests.
-
-GOAL: {goal}
-
-CURRENT CODE:
-{files_section}
-
-REFACTORING REQUIREMENTS:
-1. **Maintain Public API**: All artifacts in the manifest must remain unchanged:
-   - Function signatures must stay the same
-   - Class names and inheritance must stay the same
-   - Public method signatures must stay the same
-
-2. **Apply Clean Code Principles**:
-   - Improve readability and clarity
-   - Extract complex logic into well-named helper methods
-   - Reduce code duplication (DRY principle)
-   - Improve variable and function naming
-   - Add docstrings where missing or improve existing ones
-   - Simplify complex conditionals
-   - Remove dead code or unnecessary comments
-
-3. **Maintain Tests**: All existing tests must continue to pass
-
-4. **Preserve Behavior**: The refactored code must have identical behavior
-
-OUTPUT FORMAT:
-First, list the improvements you're making as bullet points:
-- Improvement 1
-- Improvement 2
-- etc.
-
-Then provide the refactored code.
-
-Begin your refactoring analysis and improvements:
-"""
+        template_manager = get_template_manager()
+        return template_manager.render(
+            "refactor",
+            goal=goal,
+            file_contents=files_section,
+        )

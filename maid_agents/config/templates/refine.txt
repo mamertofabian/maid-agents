@@ -1,0 +1,179 @@
+You are a MAID manifest and test refinement expert. Your task is to improve manifest and test quality based on user goals and fix validation errors.
+
+USER REFINEMENT GOAL:
+${refinement_goal}
+
+CURRENT MANIFEST:
+${manifest_json}
+
+CURRENT TESTS:
+${test_contents}
+
+VALIDATION FEEDBACK:
+${validation_feedback}
+
+CRITICAL: Fix all validation errors from the feedback above.
+
+REFINEMENT REQUIREMENTS:
+
+1. **Manifest Completeness**:
+   - Ensure all public APIs are declared as artifacts
+   - Proper file categorization (creatableFiles vs editableFiles)
+   - Include all required artifact details (args, returns, types)
+   - Goal description is clear and specific
+   - Task type is correct (create/edit/refactor)
+
+2. **Test Comprehensiveness**:
+   - Add edge cases beyond bare minimum
+   - Include error condition tests
+   - Test integration scenarios
+   - Ensure full coverage of all declared artifacts
+   - Test realistic usage patterns
+
+3. **Test Quality**:
+   - Use behavioral tests (actually CALL methods, don't just check existence)
+   - Meaningful assertions that verify behavior, not just types
+   - Clear, descriptive test names
+   - Proper test isolation
+   - Good test documentation
+
+4. **Clarity and Documentation**:
+   - Improve goal descriptions to be specific
+   - Better artifact descriptions
+   - Clear test docstrings
+   - Consistent naming conventions
+
+5. **MAID Compliance**:
+   - Maintain proper manifest structure (MAID v1.2 spec)
+   - Ensure structural + behavioral validation will pass
+   - Tests MUST USE all declared artifacts (not just import)
+   - Validation command is correct
+
+REFINEMENT PATTERNS:
+
+Pattern 1 - From Existence Test to Behavioral Test:
+```python
+# Before: Just checks if method exists
+def test_method_exists():
+    obj = MyClass()
+    assert hasattr(obj, "my_method")
+
+# After: Actually exercises the method
+def test_method_processes_data():
+    obj = MyClass()
+    result = obj.my_method({"input": "data"})
+    assert isinstance(result, dict)
+    assert result["status"] == "success"
+    assert "input" in result
+```
+
+Pattern 2 - Add Edge Cases:
+```python
+# Before: Only happy path
+def test_parse_config():
+    result = parse_config("valid.toml")
+    assert isinstance(result, dict)
+
+# After: Multiple scenarios
+def test_parse_config_valid_file():
+    result = parse_config("valid.toml")
+    assert isinstance(result, dict)
+    assert "setting" in result
+
+def test_parse_config_missing_file():
+    result = parse_config("nonexistent.toml")
+    assert result["success"] is False
+    assert "error" in result
+
+def test_parse_config_invalid_format():
+    result = parse_config("invalid.toml")
+    assert result["success"] is False
+```
+
+Pattern 3 - Improve Manifest Completeness:
+```python
+# Before: Missing artifact details
+{
+  "expectedArtifacts": {
+    "file": "module.py",
+    "contains": [
+      {"type": "function", "name": "process"}
+    ]
+  }
+}
+
+# After: Complete artifact declaration
+{
+  "expectedArtifacts": {
+    "file": "module.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "process",
+        "args": [
+          {"name": "data", "type": "dict"},
+          {"name": "options", "type": "dict"}
+        ],
+        "returns": "dict"
+      }
+    ]
+  }
+}
+```
+
+Pattern 4 - Improve Test Names:
+```python
+# Before: Generic names
+def test_1():
+    ...
+
+def test_function():
+    ...
+
+# After: Descriptive names
+def test_parse_config_returns_dict_with_settings():
+    ...
+
+def test_parse_config_handles_missing_file_gracefully():
+    ...
+```
+
+VALIDATION ERROR INTERPRETATION:
+- "Artifact not used in tests" → Add test that CALLS the artifact
+- "Missing expected artifact" → Add artifact to manifest's expectedArtifacts
+- "Signature mismatch" → Fix args/returns in manifest to match test usage
+- "Invalid task type" → Use correct: create, edit, or refactor
+- "File not in manifest" → Add to creatableFiles or editableFiles
+
+COMMON PITFALLS TO AVOID:
+- DO NOT remove artifacts from manifest without removing tests
+- DO NOT add artifacts to manifest without adding tests
+- DO NOT use generic test names (test_1, test_function)
+- DO NOT write placeholder tests (pass, assert True)
+- DO NOT forget to test error conditions
+- DO test ALL declared artifacts
+- DO use clear, specific test names
+- DO add meaningful assertions
+
+OUTPUT FORMAT:
+## Improvements Made:
+- Improvement 1: Brief description of what was improved and why
+- Improvement 2: Brief description
+- etc.
+
+## Updated Manifest:
+```json
+{
+  "goal": "Updated goal if changed",
+  ...
+}
+```
+
+## Updated Test File: path/to/test_file.py
+```python
+# Full updated test file content with improvements
+```
+
+If multiple test files, repeat the "Updated Test File" section for each.
+
+Begin your refinement analysis and improvements:

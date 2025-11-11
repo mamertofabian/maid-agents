@@ -7,6 +7,7 @@ from typing import Dict, Any
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.template_manager import get_template_manager
 
 
 class Refiner(BaseAgent):
@@ -252,74 +253,18 @@ class Refiner(BaseAgent):
             ]
         )
 
-        feedback_section = ""
-        if validation_feedback:
-            feedback_section = f"""
-VALIDATION FEEDBACK FROM PREVIOUS ITERATION:
-{validation_feedback}
+        # Build manifest JSON string
+        manifest_json = json.dumps(manifest_data, indent=2)
 
-CRITICAL: Fix all validation errors from the feedback above.
-"""
-
-        return f"""You are a MAID manifest and test refinement expert. Your task is to improve manifest and test quality based on user goals and fix validation errors.
-
-USER REFINEMENT GOAL:
-{refinement_goal}
-
-CURRENT MANIFEST:
-```json
-{json.dumps(manifest_data, indent=2)}
-```
-
-CURRENT TESTS:
-{tests_section}
-{feedback_section}
-REFINEMENT REQUIREMENTS:
-
-1. **Manifest Completeness**:
-   - Ensure all public APIs are declared as artifacts
-   - Proper file categorization (creatableFiles vs editableFiles)
-   - Include all required artifact details (args, returns, types)
-
-2. **Test Comprehensiveness**:
-   - Add edge cases beyond bare minimum
-   - Include error condition tests
-   - Test integration scenarios
-   - Ensure full coverage of all declared artifacts
-
-3. **Test Quality**:
-   - Use behavioral tests (actually call methods, don't just check existence)
-   - Meaningful assertions that verify behavior
-   - Clear, descriptive test names
-   - Proper test isolation
-
-4. **Clarity and Documentation**:
-   - Improve goal descriptions
-   - Better artifact descriptions
-   - Clear test docstrings
-
-5. **MAID Compliance**:
-   - Maintain proper manifest structure
-   - Ensure structural + behavioral validation will pass
-   - Tests MUST USE all declared artifacts
-
-OUTPUT FORMAT:
-## Improvements Made:
-- Improvement 1
-- Improvement 2
-
-## Refined Manifest:
-```json
-{{
-  "goal": "...",
-  ...
-}}
-```
-
-## Refined Tests ({list(test_contents.keys())[0] if test_contents else 'test_file.py'}):
-```python
-# Refined test code
-```
-
-Begin your refinement analysis and improvements:
-"""
+        template_manager = get_template_manager()
+        return template_manager.render(
+            "refine",
+            refinement_goal=refinement_goal,
+            manifest_json=manifest_json,
+            test_contents=tests_section,
+            validation_feedback=(
+                validation_feedback
+                if validation_feedback
+                else "No validation errors from previous iteration."
+            ),
+        )

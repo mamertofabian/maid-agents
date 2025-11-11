@@ -4,6 +4,7 @@ import json
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.template_manager import get_template_manager
 
 
 class ManifestArchitect(BaseAgent):
@@ -134,44 +135,7 @@ class ManifestArchitect(BaseAgent):
         Returns:
             Formatted prompt string
         """
-        return f"""You are a JSON generator. Your ONLY job is to output valid JSON. Do NOT write explanations, do NOT use markdown, do NOT create files.
-
-TASK: Generate a MAID v1.2 manifest JSON for task-{task_number:03d}
-
-GOAL: {goal}
-
-REQUIREMENTS:
-1. Determine task type (create/edit/refactor)
-2. List files to touch (creatableFiles vs editableFiles)
-3. Declare ALL public artifacts with precise signatures
-4. Specify validation command (pytest path)
-5. Be atomic: touch minimal files
-6. Be explicit: declare all public APIs
-
-CRITICAL: Your response must be ONLY the raw JSON object. No markdown, no explanation, no code fences.
-
-Example JSON structure (return something like this):
-{{
-  "goal": "{goal}",
-  "taskType": "create",
-  "creatableFiles": ["path/to/new/file.py"],
-  "readonlyFiles": ["tests/test_file.py"],
-  "expectedArtifacts": {{
-    "file": "path/to/new/file.py",
-    "contains": [
-      {{
-        "type": "class",
-        "name": "ClassName"
-      }},
-      {{
-        "type": "function",
-        "name": "function_name",
-        "class": "ClassName",
-        "args": [{{"name": "param", "type": "str"}}],
-        "returns": "ReturnType"
-      }}
-    ]
-  }},
-  "validationCommand": ["pytest", "tests/test_file.py", "-v"]
-}}
-"""
+        template_manager = get_template_manager()
+        return template_manager.render(
+            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
+        )

@@ -1,16 +1,117 @@
-You are a MAID Manifest Architect creating a manifest for:
+You are a JSON generator. Your ONLY job is to output valid JSON. Do NOT write explanations, do NOT use markdown, do NOT create files.
 
-GOAL: {goal}
+TASK: Generate a MAID v1.2 manifest JSON for task-${task_number}
 
-Create a manifest.json following MAID v1.2 specs:
+GOAL: ${goal}
+
+REQUIREMENTS:
 1. Determine task type (create/edit/refactor)
 2. List files to touch (creatableFiles vs editableFiles)
 3. Declare ALL public artifacts with precise signatures
 4. Specify validation command (pytest path)
+5. Be atomic: touch minimal files
+6. Be explicit: declare all public APIs
+7. Be testable: artifacts must be verifiable in tests
 
-CRITICAL:
-- Be atomic: touch minimal files
-- Be explicit: declare all public APIs
-- Be testable: artifacts must be verifiable in tests
+CRITICAL: Your response must be ONLY the raw JSON object. No markdown, no explanation, no code fences.
 
-Output ONLY valid JSON matching the manifest schema.
+MANIFEST SCHEMA:
+{
+  "goal": "Concise description of what this task accomplishes",
+  "taskType": "create" | "edit" | "refactor",
+  "creatableFiles": ["path/to/new/file.py"],        // For taskType="create"
+  "editableFiles": ["path/to/existing/file.py"],    // For taskType="edit"
+  "readonlyFiles": ["tests/test_*.py"],             // Test files (readonly)
+  "expectedArtifacts": {
+    "file": "path/to/main/file.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ClassName",
+        "inherits": "BaseClass"  // optional
+      },
+      {
+        "type": "function",
+        "name": "function_name",
+        "class": "ClassName",     // optional - if method
+        "args": [
+          {"name": "param1", "type": "str"},
+          {"name": "param2", "type": "int"}
+        ],
+        "returns": "ReturnType"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_file.py", "-v"]
+}
+
+EXAMPLES FROM MAID AGENTS CODEBASE:
+
+Example 1 - Create task (new file):
+{
+  "goal": "Create validation runner for executing maid CLI commands",
+  "taskType": "create",
+  "creatableFiles": ["maid_agents/core/validation_runner.py"],
+  "readonlyFiles": ["tests/test_task_002_validation_runner.py"],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/validation_runner.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ValidationRunner"
+      },
+      {
+        "type": "function",
+        "name": "validate_manifest",
+        "class": "ValidationRunner",
+        "args": [
+          {"name": "manifest_path", "type": "str"}
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_002_validation_runner.py", "-v"]
+}
+
+Example 2 - Edit task (modify existing file):
+{
+  "goal": "Add comprehensive logging to orchestrator and agents for observability",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py"
+  ],
+  "readonlyFiles": ["tests/test_task_016_logging.py"],
+  "expectedArtifacts": {
+    "file": "maid_agents/utils/logging.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "log_phase_start",
+        "args": [
+          {"name": "phase_name", "type": "str"}
+        ],
+        "returns": "None"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_016_logging.py", "-v"]
+}
+
+TASK NUMBERING:
+- Use zero-padded 3-digit format: task-001, task-002, task-042
+- Test files follow pattern: test_task_NNN_description.py
+- Manifest files: task-NNN-description.manifest.json
+
+ERROR PREVENTION:
+- DO NOT include non-public (private/internal) methods in expectedArtifacts
+- DO NOT declare __init__ unless it has non-standard parameters
+- DO NOT mix taskType="create" with editableFiles
+- DO NOT forget to declare return types ("returns": "dict", not missing)
+- DO include ALL public APIs that tests will verify
+
+OUTPUT INSTRUCTIONS:
+Return ONLY the JSON object. No markdown code fences, no explanation text, no commentary.
+Start your response with { and end with }

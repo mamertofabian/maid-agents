@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.template_manager import get_template_manager
 
 
 class TestDesigner(BaseAgent):
@@ -137,48 +138,17 @@ class TestDesigner(BaseAgent):
             Formatted prompt string
         """
         goal = manifest_data.get("goal", "")
-        artifacts = manifest_data.get("expectedArtifacts", {})
-        artifacts_summary = self._summarize_artifacts(artifacts)
+        artifacts_summary = self._summarize_artifacts(
+            manifest_data.get("expectedArtifacts", {})
+        )
 
-        # Get file paths for import statements
-        target_file = artifacts.get("file", "")
-
-        return f"""You are a Python test code generator. Your ONLY job is to output valid Python pytest code. Do NOT write explanations.
-
-TASK: Generate behavioral tests for MAID manifest: {manifest_path}
-
-GOAL: {goal}
-
-EXPECTED ARTIFACTS TO TEST:
-{artifacts_summary}
-
-REQUIREMENTS:
-1. Import from: {target_file} (convert path to import statement)
-2. CALL/USE each declared artifact (not just check existence)
-3. Exercise ALL parameters from manifest signatures
-4. Validate return types with isinstance() or assert
-5. Follow pytest conventions (test_* functions)
-6. Add proper docstrings to each test
-
-CRITICAL: Your response must be ONLY raw Python code. No markdown, no explanations, no code fences.
-
-Example test structure:
-\"\"\"Behavioral tests for {goal}.\"\"\"
-
-import pytest
-from path.to.module import ClassName, function_name
-
-def test_artifact_instantiation():
-    \"\"\"Test artifact can be instantiated/called.\"\"\"
-    instance = ClassName()
-    assert instance is not None
-
-def test_artifact_method_signature():
-    \"\"\"Test method exists with correct signature.\"\"\"
-    instance = ClassName()
-    result = instance.method(param1="value", param2=123)
-    assert isinstance(result, dict)
-"""
+        template_manager = get_template_manager()
+        return template_manager.render(
+            "test_generation",
+            manifest_path=manifest_path,
+            goal=goal,
+            artifacts_summary=artifacts_summary,
+        )
 
     def _summarize_artifacts(self, artifacts: Dict[str, Any]) -> str:
         """Summarize artifacts for prompt with detailed signatures.

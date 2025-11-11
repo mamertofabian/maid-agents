@@ -1,15 +1,104 @@
 {
-  "goal": "Create reusable prompt templates for manifest creation, test generation, and implementation",
+  "goal": "Create production-ready template system with TemplateManager for loading and rendering prompt templates used by all MAID agents",
   "taskType": "create",
   "creatableFiles": [
-    "maid_agents/maid_agents/config/templates/manifest_creation.txt",
-    "maid_agents/maid_agents/config/templates/test_generation.txt",
-    "maid_agents/maid_agents/config/templates/implementation.txt"
+    "maid_agents/config/template_manager.py",
+    "maid_agents/config/templates/manifest_creation.txt",
+    "maid_agents/config/templates/test_generation.txt",
+    "maid_agents/config/templates/implementation.txt",
+    "maid_agents/config/templates/refactor.txt",
+    "maid_agents/config/templates/refine.txt",
+    "tests/test_template_manager.py"
   ],
-  "readonlyFiles": ["maid_agents/tests/test_task_014_prompt_templates.py"],
+  "editableFiles": [
+    "maid_agents/agents/manifest_architect.py",
+    "maid_agents/agents/test_designer.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/agents/refiner.py"
+  ],
+  "readonlyFiles": ["tests/test_task_014_prompt_templates.py"],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/config/templates/manifest_creation.txt",
-    "contains": []
+    "file": "maid_agents/config/template_manager.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "TemplateManager"
+      },
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "templates_dir", "type": "Optional[Path]"}
+        ],
+        "returns": "None"
+      },
+      {
+        "type": "function",
+        "name": "load_template",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "Template"
+      },
+      {
+        "type": "function",
+        "name": "render",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "str"
+      },
+      {
+        "type": "function",
+        "name": "render_safe",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "str"
+      },
+      {
+        "type": "function",
+        "name": "list_templates",
+        "class": "TemplateManager",
+        "args": [],
+        "returns": "list[str]"
+      },
+      {
+        "type": "function",
+        "name": "clear_cache",
+        "class": "TemplateManager",
+        "args": [],
+        "returns": "None"
+      },
+      {
+        "type": "function",
+        "name": "get_template_path",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "Path"
+      },
+      {
+        "type": "function",
+        "name": "get_template_manager",
+        "args": [],
+        "returns": "TemplateManager"
+      },
+      {
+        "type": "function",
+        "name": "render_template",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "str"
+      }
+    ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_014_prompt_templates.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_014_prompt_templates.py", "tests/test_template_manager.py", "-v"]
 }

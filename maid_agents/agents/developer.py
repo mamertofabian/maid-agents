@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.config.template_manager import get_template_manager
 
 
 class Developer(BaseAgent):
@@ -109,9 +110,41 @@ class Developer(BaseAgent):
         """
         goal = manifest_data.get("goal", "")
         artifacts = manifest_data.get("expectedArtifacts", {})
-        file_to_create = artifacts.get("file", "")
 
-        # Build artifact list for context
+        # Build artifact summary
+        artifacts_summary = self._build_artifacts_summary(artifacts)
+
+        # Build files to modify list
+        files_to_modify = manifest_data.get("creatableFiles", []) + manifest_data.get(
+            "editableFiles", []
+        )
+        files_str = (
+            "\n".join(f"  - {f}" for f in files_to_modify)
+            if files_to_modify
+            else "  (none specified)"
+        )
+
+        template_manager = get_template_manager()
+        return template_manager.render(
+            "implementation",
+            manifest_path=f"manifests/{goal[:30]}.manifest.json",  # Placeholder
+            goal=goal,
+            test_output=(
+                test_errors if test_errors else "No test failures yet (first iteration)"
+            ),
+            artifacts_summary=artifacts_summary,
+            files_to_modify=files_str,
+        )
+
+    def _build_artifacts_summary(self, artifacts: Dict[str, Any]) -> str:
+        """Build summary of expected artifacts.
+
+        Args:
+            artifacts: expectedArtifacts from manifest
+
+        Returns:
+            Formatted string of artifacts
+        """
         artifact_list = []
         for artifact in artifacts.get("contains", []):
             if artifact["type"] == "function":
@@ -139,37 +172,4 @@ class Developer(BaseAgent):
                 else:
                     artifact_list.append(f"  - Attribute: {artifact['name']}")
 
-        artifacts_section = (
-            "\n".join(artifact_list) if artifact_list else "  (none specified)"
-        )
-        error_section = f"\nTEST FAILURES:\n{test_errors}\n" if test_errors else ""
-
-        return f"""You are a Python code generator. Your ONLY job is to output Python code. Do NOT write explanations unless in code comments.
-
-TASK: Implement code for the following specification
-
-GOAL: {goal}
-
-FILE: {file_to_create}
-
-REQUIRED ARTIFACTS:
-{artifacts_section}
-{error_section}
-REQUIREMENTS:
-1. Make all tests pass
-2. Match the artifact signatures EXACTLY as specified
-3. Handle errors appropriately
-4. Follow Python best practices
-5. Include docstrings for public APIs
-
-CRITICAL: Output ONLY the Python code. You may use markdown code fences (```python) but minimize explanatory text.
-
-Example output format:
-```python
-# Your implementation here
-def example_function(param: str) -> bool:
-    \"\"\"Docstring here.\"\"\"
-    # Implementation
-    return True
-```
-"""
+        return "\n".join(artifact_list) if artifact_list else "  (none specified)"
