@@ -1,6 +1,8 @@
 """Refactorer Agent - Phase 3.5: Improves code quality while maintaining compliance."""
 
 import json
+import re
+from pathlib import Path
 from typing import Dict, Any
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -28,11 +30,12 @@ class Refactorer(BaseAgent):
         """
         return {"status": "ready", "agent": "Refactorer"}
 
-    def refactor(self, manifest_path: str) -> dict:
+    def refactor(self, manifest_path: str, validation_feedback: str = "") -> dict:
         """Refactor code while maintaining tests and manifest compliance.
 
         Args:
             manifest_path: Path to manifest file
+            validation_feedback: Optional error messages from previous validation/test failures
 
         Returns:
             Dict with refactoring status, improvements list, and refactored code
@@ -70,7 +73,9 @@ class Refactorer(BaseAgent):
         file_contents = self._load_file_contents(files_to_refactor)
 
         # Build prompt for Claude
-        prompt = self._build_refactor_prompt(manifest_data, file_contents)
+        prompt = self._build_refactor_prompt(
+            manifest_data, file_contents, validation_feedback
+        )
 
         # Generate refactoring suggestions using Claude
         response = self.claude.generate(prompt)
@@ -81,11 +86,36 @@ class Refactorer(BaseAgent):
         # Parse improvements from response
         improvements = self._extract_improvements(response.result)
 
+        # Parse refactored code blocks for each file
+        refactored_files = self._parse_refactored_code(
+            response.result, files_to_refactor
+        )
+
+        # Write refactored code to files
+        files_written = []
+        for file_path, code in refactored_files.items():
+            try:
+                # Use normalized path for writing
+                normalized_path = self._normalize_path(file_path)
+                target_file = Path(normalized_path)
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+
+                with open(target_file, "w") as f:
+                    f.write(code)
+                files_written.append(normalized_path)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": f"Failed to write refactored code to {file_path}: {e}",
+                    "improvements": improvements,
+                }
+
         return {
             "success": True,
             "improvements": improvements,
             "refactored_code": response.result,
             "files_affected": files_to_refactor,
+            "files_written": files_written,
             "error": None,
         }
 
@@ -165,14 +195,60 @@ class Refactorer(BaseAgent):
 
         return improvements
 
+    def _parse_refactored_code(self, response: str, file_paths: list) -> Dict[str, str]:
+        """Parse refactored code blocks from Claude's response.
+
+        Args:
+            response: Claude's refactoring response
+            file_paths: List of file paths that were refactored
+
+        Returns:
+            Dict mapping file paths to their refactored code
+        """
+        refactored_files = {}
+
+        # Pattern to match: File: path\n```python\ncode\n```
+        # This handles both the original path format and normalized paths
+        # Allow for optional whitespace/newlines between File: line and code block
+        # Handle code blocks ending with ``` on same or next line
+        pattern = r"File:\s*([^\n]+)\s*\n\s*```python\s*\n(.*?)\n\s*```"
+        matches = re.findall(pattern, response, re.DOTALL)
+
+        for file_path, code in matches:
+            # Normalize the path from response
+            normalized_response_path = self._normalize_path(file_path.strip())
+
+            # Find matching file from the original list
+            for original_path in file_paths:
+                normalized_original = self._normalize_path(original_path)
+                if normalized_response_path == normalized_original:
+                    refactored_files[original_path] = code.strip()
+                    break
+
+        # If no matches found, try to extract single code block (fallback)
+        if not refactored_files and file_paths:
+            # Try to find any code block
+            code_block_pattern = r"```python\n(.*?)\n```"
+            code_matches = re.findall(code_block_pattern, response, re.DOTALL)
+            if code_matches:
+                # Use the largest code block for the first file
+                code = max(code_matches, key=len).strip()
+                refactored_files[file_paths[0]] = code
+
+        return refactored_files
+
     def _build_refactor_prompt(
-        self, manifest_data: Dict[str, Any], file_contents: Dict[str, Any]
+        self,
+        manifest_data: Dict[str, Any],
+        file_contents: Dict[str, Any],
+        validation_feedback: str = "",
     ) -> str:
         """Build prompt for Claude to refactor code.
 
         Args:
             manifest_data: Parsed manifest data
             file_contents: Dict of file paths to their contents
+            validation_feedback: Optional error messages from previous validation/test failures
 
         Returns:
             Formatted prompt string
@@ -187,9 +263,14 @@ class Refactorer(BaseAgent):
             ]
         )
 
+        # Add validation feedback if provided
+        feedback_section = ""
+        if validation_feedback:
+            feedback_section = f"\n\nVALIDATION ERRORS FROM PREVIOUS ITERATION:\n{validation_feedback}\n\nPlease fix these issues while maintaining code quality improvements."
+
         template_manager = get_template_manager()
         return template_manager.render(
             "refactor",
             goal=goal,
-            file_contents=files_section,
+            file_contents=files_section + feedback_section,
         )

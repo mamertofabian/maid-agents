@@ -79,6 +79,7 @@ class ClaudeWrapper:
         # Real Claude invocation
         # Note: -p/--print flag is required for non-interactive output
         # --permission-mode acceptEdits allows auto-approval of file operations
+        # --allowedTools allows specific Bash commands (pytest, maid, black, make, etc.)
         cmd = [
             "claude",
             "--print",
@@ -87,6 +88,8 @@ class ClaudeWrapper:
             "json",
             "--permission-mode",
             "acceptEdits",
+            "--allowedTools",
+            "Bash(pytest),Bash(maid test:*),Bash(maid validate:*),Bash(black),Bash(make)",
         ]
         self.logger.debug(f"Running command: {' '.join(cmd[:3])}...")
 

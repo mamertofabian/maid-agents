@@ -31,6 +31,13 @@
           }
         ],
         "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "Refactorer",
+        "args": [],
+        "returns": "dict"
       }
     ]
   },

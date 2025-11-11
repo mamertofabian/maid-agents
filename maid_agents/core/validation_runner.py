@@ -136,9 +136,49 @@ class ValidationRunner:
         try:
             with open(manifest_path) as f:
                 manifest = json.load(f)
-            return manifest.get("validationCommand", [])
+            command = manifest.get("validationCommand", [])
+            # Normalize paths in the command to handle duplicate maid_agents/ prefix
+            return self._normalize_command_paths(command)
         except (FileNotFoundError, json.JSONDecodeError):
             return None
+
+    def _normalize_command_paths(self, command: List[str]) -> List[str]:
+        """Normalize file paths in a command by removing duplicate maid_agents/ prefix.
+
+        Args:
+            command: List of command arguments
+
+        Returns:
+            List with normalized paths
+        """
+        normalized = []
+        for arg in command:
+            # Check if this looks like a file path (not a flag/option)
+            if arg and not arg.startswith("-") and "/" in arg:
+                normalized_path = self._normalize_path(arg)
+                normalized.append(normalized_path)
+            else:
+                normalized.append(arg)
+        return normalized
+
+    def _normalize_path(self, path: str) -> str:
+        """Normalize file path by removing duplicate maid_agents/ prefix.
+
+        Args:
+            path: Original file path
+
+        Returns:
+            Normalized path with duplicate prefix removed
+        """
+        # Remove duplicate maid_agents/maid_agents/ prefix
+        if path.startswith("maid_agents/maid_agents/"):
+            return path.replace("maid_agents/maid_agents/", "maid_agents/", 1)
+        # Also handle maid_agents/tests/ -> tests/ (test files are at root)
+        if path.startswith("maid_agents/tests/") and not Path(path).exists():
+            normalized = path.replace("maid_agents/tests/", "tests/", 1)
+            if Path(normalized).exists():
+                return normalized
+        return path
 
     def _prepare_test_environment(self) -> Dict[str, str]:
         """Prepare environment variables for test execution.

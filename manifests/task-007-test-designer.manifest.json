@@ -27,6 +27,13 @@
           }
         ],
         "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "TestDesigner",
+        "args": [],
+        "returns": "dict"
       }
     ]
   },

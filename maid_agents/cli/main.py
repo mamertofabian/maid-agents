@@ -8,7 +8,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from maid_agents.agents.refactorer import Refactorer
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.config.config_loader import load_config, get_config_example
 from maid_agents.core.orchestrator import MAIDOrchestrator
@@ -156,6 +155,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         help="Refactor code to improve quality (Phase 3.5)",
     )
     refactor_parser.add_argument("manifest_path", help="Path to manifest file")
+    refactor_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum refactoring iterations (default: from config or 10)",
+    )
 
     # Refine subcommand
     refine_parser = subparsers.add_parser(
@@ -354,6 +359,13 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
     elif args.command == "refactor":
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else getattr(config, "max_refactoring_iterations", 10)
+        )
+
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
             _print_error(
@@ -378,25 +390,30 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             transient=True,
         ) as progress:
             progress.add_task("Refactoring...", total=None)
-            refactorer = Refactorer(claude)
-            result = refactorer.refactor(manifest_path=manifest_path)
+            result = orchestrator.run_refactoring_loop(
+                manifest_path=manifest_path, max_iterations=max_iterations
+            )
 
         if result["success"]:
-            console.print("[bold green]✅ Refactoring complete![/bold green]")
             console.print(
-                f"  [cyan]Files affected:[/cyan] {', '.join(result['files_affected'])}"
+                f"[bold green]✅ Refactoring complete in {result['iterations']} iteration(s)![/bold green]"
             )
-            console.print(
-                f"  [cyan]Improvements:[/cyan] ({len(result['improvements'])})"
-            )
-            for i, improvement in enumerate(result["improvements"], 1):
-                console.print(f"    {i}. {improvement}")
+            improvements = result.get("improvements", [])
+            if improvements:
+                console.print(f"  [cyan]Improvements:[/cyan] ({len(improvements)})")
+                for i, improvement in enumerate(improvements, 1):
+                    console.print(f"    {i}. {improvement}")
+            files_written = result.get("files_written", [])
+            if files_written:
+                console.print(
+                    f"  [cyan]Files written:[/cyan] {', '.join(files_written)}"
+                )
             sys.exit(0)
         else:
             _print_error(
-                "Refactoring failed",
+                f"Refactoring failed after {result['iterations']} iteration(s)",
                 details=result.get("error"),
-                suggestion="Check if all tests are passing before refactoring",
+                suggestion="Check if all tests are passing before refactoring, or increase --max-iterations",
             )
             sys.exit(1)
 

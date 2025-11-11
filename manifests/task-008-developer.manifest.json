@@ -36,6 +36,13 @@
           }
         ],
         "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "Developer",
+        "args": [],
+        "returns": "dict"
       }
     ]
   },

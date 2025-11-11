@@ -33,6 +33,13 @@
           {"name": "validation_feedback", "type": "str"}
         ],
         "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "Refiner",
+        "args": [],
+        "returns": "dict"
       }
     ]
   },
