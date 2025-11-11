@@ -6,7 +6,26 @@
   "expectedArtifacts": {
     "file": "maid_agents/maid_agents/core/orchestrator.py",
     "contains": [
-      {"type": "function", "name": "_handle_error", "class": "MAIDOrchestrator", "args": [{"name": "error", "type": "Exception"}], "returns": "dict"}
+      {
+        "type": "function",
+        "name": "_handle_error",
+        "class": "MAIDOrchestrator",
+        "args": [{"name": "error", "type": "Exception"}],
+        "returns": "dict",
+        "description": "Main error handler with categorization, context preservation, and recovery suggestions"
+      },
+      {
+        "type": "function",
+        "name": "_categorize_error",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "error", "type": "Exception"},
+          {"name": "error_type", "type": "str"},
+          {"name": "error_message", "type": "str"}
+        ],
+        "returns": "tuple[str, bool, str, str]",
+        "description": "Helper method to categorize errors and provide recovery guidance. Returns (category, recoverable, user_message, suggestion)"
+      }
     ]
   },
   "validationCommand": ["pytest", "maid_agents/tests/test_task_015_error_handling.py", "-v"]

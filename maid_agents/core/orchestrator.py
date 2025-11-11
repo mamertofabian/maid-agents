@@ -702,19 +702,159 @@ class MAIDOrchestrator:
         return False, ""
 
     def _handle_error(self, error: Exception) -> dict:
-        """Handle errors during workflow execution.
+        """Handle errors during workflow execution with categorization and recovery suggestions.
+
+        Provides comprehensive error handling with:
+        - Error categorization (transient vs permanent, recoverable vs fatal)
+        - Context preservation (stack trace, operation context)
+        - User-friendly messages with actionable suggestions
+        - Integration with logging system
 
         Args:
             error: Exception that occurred
 
         Returns:
-            Dict with error information
+            Dict with comprehensive error information:
+            - error: Original error message
+            - error_type: Exception class name
+            - category: Error category (transient, permanent, validation, configuration, etc.)
+            - recoverable: Boolean indicating if error is recoverable
+            - message: User-friendly error message
+            - suggestion: Actionable suggestion for resolution
+            - stack_trace: Full stack trace for debugging
         """
+        import traceback
+
         error_type = type(error).__name__
         error_message = str(error)
+        stack_trace = traceback.format_exc()
+
+        # Categorize error and determine if recoverable
+        category, recoverable, user_message, suggestion = self._categorize_error(
+            error, error_type, error_message
+        )
+
+        # Log error with appropriate level
+        if recoverable:
+            logger.warning(
+                f"Recoverable {category} error: {error_type}: {error_message}"
+            )
+        else:
+            logger.error(
+                f"Fatal {category} error: {error_type}: {error_message}",
+                exc_info=True,
+            )
 
         return {
             "error": error_message,
             "error_type": error_type,
-            "message": f"{error_type}: {error_message}",
+            "category": category,
+            "recoverable": recoverable,
+            "message": user_message,
+            "suggestion": suggestion,
+            "stack_trace": stack_trace,
         }
+
+    def _categorize_error(
+        self, error: Exception, error_type: str, error_message: str
+    ) -> tuple[str, bool, str, str]:
+        """Categorize error and provide recovery guidance.
+
+        Args:
+            error: The exception object
+            error_type: Name of exception class
+            error_message: String representation of error
+
+        Returns:
+            Tuple of (category, recoverable, user_message, suggestion)
+        """
+        # Network/API errors - typically transient
+        if any(
+            keyword in error_type
+            for keyword in ["Timeout", "Connection", "Network", "HTTP"]
+        ):
+            return (
+                "network",
+                True,
+                "Network or API error occurred",
+                "Check your internet connection and API credentials. This error is often transient - try again.",
+            )
+
+        # File I/O errors - may be recoverable
+        if any(
+            keyword in error_type
+            for keyword in ["FileNotFound", "Permission", "IOError", "OSError"]
+        ):
+            return (
+                "filesystem",
+                True,
+                f"File system error: {error_message}",
+                "Check file paths, permissions, and disk space. Ensure all required directories exist.",
+            )
+
+        # Validation errors - user input issue
+        if any(
+            keyword in error_type
+            for keyword in [
+                "Validation",
+                "Schema",
+                "ValueError",
+                "KeyError",
+                "AttributeError",
+            ]
+        ):
+            return (
+                "validation",
+                True,
+                f"Validation error: {error_message}",
+                "Review the manifest structure and ensure all required fields are present with correct types.",
+            )
+
+        # JSON/parsing errors
+        if any(
+            keyword in error_type for keyword in ["JSON", "Parse", "Decode", "Syntax"]
+        ):
+            return (
+                "parsing",
+                True,
+                f"Parsing error: {error_message}",
+                "Check for malformed JSON or syntax errors in generated files. Review Claude's output.",
+            )
+
+        # Import/module errors - configuration issue
+        if "Import" in error_type or "ModuleNotFound" in error_type:
+            return (
+                "configuration",
+                False,
+                f"Module import error: {error_message}",
+                "Install missing dependencies with 'uv pip install -e .' or check your Python environment.",
+            )
+
+        # Memory errors - resource issue
+        if any(keyword in error_type for keyword in ["Memory", "Resource"]):
+            return (
+                "resource",
+                False,
+                "System resource error occurred",
+                "Check available memory and disk space. Consider reducing batch sizes or complexity.",
+            )
+
+        # Subprocess/command errors
+        if any(
+            keyword in error_type
+            for keyword in ["CalledProcess", "Subprocess", "Command"]
+        ):
+            return (
+                "subprocess",
+                True,
+                f"Command execution error: {error_message}",
+                "Check command syntax and availability. Review pytest configuration and test file paths.",
+            )
+
+        # Default: Unknown error
+        return (
+            "unknown",
+            False,
+            f"Unexpected error: {error_type}: {error_message}",
+            "Review the stack trace for details. This may require code changes or debugging.",
+        )
