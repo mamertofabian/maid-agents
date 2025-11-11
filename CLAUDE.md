@@ -72,6 +72,62 @@ ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
 ccmaid --mock plan "Test feature"
 ```
 
+### Using maid CLI
+
+The `maid` command (from **maid-runner** package) provides validation and snapshot capabilities for MAID manifests:
+
+```bash
+# Validate a single manifest
+maid validate manifests/task-042.manifest.json
+
+# Validate with manifest chain (merges related manifests)
+maid validate manifests/task-042.manifest.json --use-manifest-chain
+
+# Validate all manifests in a directory
+maid validate --manifest-dir manifests
+
+# Behavioral validation (checks test usage of artifacts)
+maid validate manifests/task-042.manifest.json --validation-mode behavioral
+
+# Generate snapshot manifest from existing Python file
+maid snapshot maid_agents/core/orchestrator.py
+
+# Generate snapshot to specific directory
+maid snapshot maid_agents/core/orchestrator.py --output-dir manifests
+
+# Run validation commands from all manifests
+maid test
+
+# Run validation for a specific manifest
+maid test --manifest task-042.manifest.json
+
+# Run with verbose output
+maid test --verbose
+
+# Fail fast on first error
+maid test --fail-fast
+```
+
+**Command Reference:**
+
+- **`maid validate`**: Validates manifest structure and compliance
+  - `--validation-mode {implementation,behavioral}`: Implementation checks definitions, behavioral checks test usage
+  - `--use-manifest-chain`: Merge related manifests for validation (auto-enabled for directory validation)
+  - `--quiet, -q`: Suppress success messages, only show errors
+  - `--manifest-dir`: Validate all manifests in directory (mutually exclusive with manifest_path)
+
+- **`maid snapshot`**: Generates MAID manifests from existing Python files
+  - `--output-dir`: Directory to write manifest (default: `manifests`)
+  - `--force`: Overwrite existing manifests without prompting
+
+- **`maid test`**: Runs validation commands from manifests
+  - `--manifest, -m`: Run validation for single manifest (filename relative to manifest-dir or absolute path)
+  - `--manifest-dir`: Directory containing manifests (default: `manifests`)
+  - `--fail-fast`: Stop execution on first failure
+  - `--verbose, -v`: Show detailed command output
+  - `--quiet, -q`: Only show summary (suppress per-manifest output)
+  - `--timeout`: Command timeout in seconds (default: 300)
+
 ## Architecture
 
 ### Core Components
