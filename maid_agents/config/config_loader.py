@@ -15,6 +15,34 @@ except ModuleNotFoundError:
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, Any, List, Optional
+
+
+_CLI_FIELD_MAPPING = {
+    "log_level": "log_level",
+    "mock_mode": "mock_mode",
+}
+
+_CLAUDE_FIELD_MAPPING = {
+    "model": "claude_model",
+    "timeout": "claude_timeout",
+    "temperature": "claude_temperature",
+}
+
+_ITERATIONS_FIELD_MAPPING = {
+    "max_planning_iterations": "max_planning_iterations",
+    "max_implementation_iterations": "max_implementation_iterations",
+    "max_refinement_iterations": "max_refinement_iterations",
+}
+
+_DIRECTORIES_FIELD_MAPPING = {
+    "manifest_dir": "manifest_dir",
+    "test_dir": "test_dir",
+}
+
+_MAID_FIELD_MAPPING = {
+    "use_manifest_chain": "use_manifest_chain",
+}
 
 
 @dataclass
@@ -60,15 +88,9 @@ def load_config() -> CLIConfig:
     """
     config = CLIConfig()
 
-    # Try user-level config first
-    user_config_path = Path.home() / ".ccmaid.toml"
-    if user_config_path.exists():
-        config = _merge_config(config, user_config_path)
-
-    # Try project-level config (overrides user config)
-    project_config_path = Path.cwd() / ".ccmaid.toml"
-    if project_config_path.exists():
-        config = _merge_config(config, project_config_path)
+    for config_path in _get_config_paths():
+        if config_path.exists():
+            config = _merge_config(config, config_path)
 
     return config
 
@@ -83,57 +105,65 @@ def _merge_config(base_config: CLIConfig, config_path: Path) -> CLIConfig:
     Returns:
         Updated CLIConfig with values from file
     """
-    try:
-        with open(config_path, "rb") as f:
-            toml_data = tomllib.load(f)
+    toml_data = _load_toml_file(config_path)
+    if toml_data is None:
+        return base_config
 
-        # Extract CLI settings
-        cli_section = toml_data.get("cli", {})
-        if "log_level" in cli_section:
-            base_config.log_level = cli_section["log_level"]
-        if "mock_mode" in cli_section:
-            base_config.mock_mode = cli_section["mock_mode"]
-
-        # Extract Claude settings
-        claude_section = toml_data.get("claude", {})
-        if "model" in claude_section:
-            base_config.claude_model = claude_section["model"]
-        if "timeout" in claude_section:
-            base_config.claude_timeout = claude_section["timeout"]
-        if "temperature" in claude_section:
-            base_config.claude_temperature = claude_section["temperature"]
-
-        # Extract iteration limits
-        iterations = toml_data.get("iterations", {})
-        if "max_planning_iterations" in iterations:
-            base_config.max_planning_iterations = iterations["max_planning_iterations"]
-        if "max_implementation_iterations" in iterations:
-            base_config.max_implementation_iterations = iterations[
-                "max_implementation_iterations"
-            ]
-        if "max_refinement_iterations" in iterations:
-            base_config.max_refinement_iterations = iterations[
-                "max_refinement_iterations"
-            ]
-
-        # Extract directories
-        dirs = toml_data.get("directories", {})
-        if "manifest_dir" in dirs:
-            base_config.manifest_dir = dirs["manifest_dir"]
-        if "test_dir" in dirs:
-            base_config.test_dir = dirs["test_dir"]
-
-        # Extract MAID settings
-        maid_section = toml_data.get("maid", {})
-        if "use_manifest_chain" in maid_section:
-            base_config.use_manifest_chain = maid_section["use_manifest_chain"]
-
-    except Exception:
-        # Silently ignore config file errors and use defaults
-        # We could log this if logging is already setup
-        pass
+    _merge_section(base_config, toml_data, "cli", _CLI_FIELD_MAPPING)
+    _merge_section(base_config, toml_data, "claude", _CLAUDE_FIELD_MAPPING)
+    _merge_section(base_config, toml_data, "iterations", _ITERATIONS_FIELD_MAPPING)
+    _merge_section(base_config, toml_data, "directories", _DIRECTORIES_FIELD_MAPPING)
+    _merge_section(base_config, toml_data, "maid", _MAID_FIELD_MAPPING)
 
     return base_config
+
+
+def _get_config_paths() -> List[Path]:
+    """Get list of config file paths in search order.
+
+    Returns:
+        List of paths to check (user config, then project config)
+    """
+    return [
+        Path.home() / ".ccmaid.toml",
+        Path.cwd() / ".ccmaid.toml",
+    ]
+
+
+def _load_toml_file(config_path: Path) -> Optional[Dict[str, Any]]:
+    """Load TOML file and return parsed data.
+
+    Args:
+        config_path: Path to TOML config file
+
+    Returns:
+        Parsed TOML data as dictionary, or None if loading failed
+    """
+    try:
+        with open(config_path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        return None
+
+
+def _merge_section(
+    config: CLIConfig,
+    toml_data: Dict[str, Any],
+    section_name: str,
+    field_mapping: Dict[str, str],
+) -> None:
+    """Merge a TOML section into config object.
+
+    Args:
+        config: Configuration object to update
+        toml_data: Parsed TOML data
+        section_name: Name of TOML section (e.g., "cli", "claude")
+        field_mapping: Mapping from TOML keys to config attribute names
+    """
+    section_data = toml_data.get(section_name, {})
+    for toml_key, config_attr in field_mapping.items():
+        if toml_key in section_data:
+            setattr(config, config_attr, section_data[toml_key])
 
 
 def get_config_example() -> str:

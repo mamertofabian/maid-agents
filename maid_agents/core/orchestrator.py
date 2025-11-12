@@ -12,6 +12,7 @@ from typing import Optional
 
 from maid_agents.agents.manifest_architect import ManifestArchitect
 from maid_agents.agents.refiner import Refiner
+from maid_agents.agents.refactorer import Refactorer
 from maid_agents.agents.test_designer import TestDesigner
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.core.validation_runner import ValidationRunner
@@ -660,6 +661,128 @@ class MAIDOrchestrator:
             "error": error_msg,
         }
 
+    def run_refactoring_loop(
+        self, manifest_path: str, max_iterations: int = 10
+    ) -> dict:
+        """Execute refactoring loop: refactor code with validation and testing.
+
+        Args:
+            manifest_path: Path to manifest file to refactor
+            max_iterations: Maximum refactoring iterations
+
+        Returns:
+            Dict with refactoring loop results
+        """
+        self._state = WorkflowState.REFACTORING
+        log_phase_start("REFACTORING")
+        logger.info(f"Refactoring code for manifest: {manifest_path}")
+
+        # Lazy-initialize refactorer if needed
+        if not hasattr(self, "refactorer"):
+            self.refactorer = Refactorer(self.claude)
+
+        iteration = 0
+        last_error = ""
+
+        while iteration < max_iterations:
+            iteration += 1
+            log_iteration(iteration, max_iterations, "Refactoring code")
+
+            # Step 1: Refactor code
+            with LogContext("Step 1: Refactoring code", style="info"):
+                log_agent_action(
+                    "Refactorer",
+                    "refactoring code",
+                    details=manifest_path,
+                )
+                refactor_result = self.refactorer.refactor(
+                    manifest_path=manifest_path,
+                    validation_feedback=last_error if last_error else "",
+                )
+
+                if not refactor_result["success"]:
+                    # Check if error is systemic (e.g., timeout)
+                    error_msg = refactor_result.get("error", "Unknown error")
+                    is_systemic, systemic_msg = self._is_systemic_error(error_msg)
+                    if is_systemic:
+                        error_msg = f"Systemic error detected (cannot be fixed by refactoring):\n{systemic_msg}"
+                        logger.error(error_msg)
+                        log_phase_end("REFACTORING", success=False)
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": error_msg,
+                        }
+                    last_error = f"Refactoring failed: {error_msg}"
+                    logger.error(last_error)
+                    continue
+
+            improvements = refactor_result.get("improvements", [])
+
+            # Step 2: Structural validation (maid validate)
+            with LogContext("Step 2: Running structural validation", style="info"):
+                validation_result = self.validation_runner.validate_manifest(
+                    manifest_path, use_chain=True
+                )
+                log_validation_result("Structural", passed=validation_result.success)
+
+            if not validation_result.success:
+                last_error = f"Structural validation failed:\n{validation_result.stderr}\n{validation_result.stdout}"
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+
+            # Step 3: Behavioral test validation (maid test / validationCommand)
+            with LogContext("Step 3: Running behavioral tests", style="info"):
+                test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+                log_validation_result("Behavioral", passed=test_result.success)
+
+            # Check for systemic errors that cannot be fixed by refactoring
+            if not test_result.success:
+                test_output = f"{test_result.stdout}\n{test_result.stderr}"
+                is_systemic, systemic_msg = self._is_systemic_error(test_output)
+                if is_systemic:
+                    # Bail out immediately - this is not a refactoring issue
+                    error_msg = f"Systemic error detected (cannot be fixed by refactoring):\n{systemic_msg}"
+                    logger.error(error_msg)
+                    log_phase_end("REFACTORING", success=False)
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": error_msg,
+                    }
+
+            if test_result.success:
+                # Refactoring complete - both validations pass!
+                logger.info(f"Refactoring complete in {iteration} iteration(s)!")
+                log_phase_end("REFACTORING", success=True)
+                return {
+                    "success": True,
+                    "iterations": iteration,
+                    "improvements": improvements,
+                    "files_written": refactor_result.get("files_written", []),
+                    "error": None,
+                }
+            else:
+                # Tests failed - provide comprehensive feedback for next iteration
+                test_output = f"{test_result.stdout}\n{test_result.stderr}".strip()
+                if test_result.errors:
+                    error_summary = "\n".join(test_result.errors)
+                    last_error = f"Tests failed:\n{error_summary}\n\nFull test output:\n{test_output}"
+                else:
+                    last_error = f"Tests failed. Full test output:\n{test_output}"
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+
+        # Max iterations reached without success
+        error_msg = f"Refactoring loop failed after {max_iterations} iterations. Last error: {last_error}"
+        logger.error(error_msg)
+        log_phase_end("REFACTORING", success=False)
+        return {
+            "success": False,
+            "iterations": iteration,
+            "error": error_msg,
+        }
+
     def _is_systemic_error(self, test_output: str) -> tuple[bool, str]:
         """Detect if test failure is due to systemic issues, not implementation.
 
@@ -689,6 +812,38 @@ class MAIDOrchestrator:
             (
                 "No module named 'pytest'",
                 "pytest not installed - install test framework",
+            ),
+            (
+                "file or directory not found",
+                "Test file not found - check test file path in manifest",
+            ),
+            (
+                "ERROR: file or directory not found",
+                "Test file not found - check test file path in manifest",
+            ),
+            (
+                "no tests ran",
+                "No tests found - check test file path and test discovery",
+            ),
+            (
+                "timed out",
+                "Operation timed out - check network connection or increase timeout",
+            ),
+            (
+                "Claude CLI timed out",
+                "Claude API timed out - check network connection or increase timeout",
+            ),
+            (
+                "TimeoutExpired",
+                "Command timed out - check system resources or increase timeout",
+            ),
+            (
+                "output-format=stream-json requires --verbose",
+                "Claude CLI configuration error - check CLI wrapper settings",
+            ),
+            (
+                "When using --print, --output-format=stream-json requires --verbose",
+                "Claude CLI configuration error - check CLI wrapper settings",
             ),
         ]
 

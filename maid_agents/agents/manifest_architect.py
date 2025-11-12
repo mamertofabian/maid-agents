@@ -1,6 +1,7 @@
 """Manifest Architect Agent - Phase 1: Creates manifests from goals."""
 
 import json
+import re
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
@@ -9,6 +10,11 @@ from maid_agents.config.template_manager import get_template_manager
 
 class ManifestArchitect(BaseAgent):
     """Agent that creates MAID manifests from high-level goals."""
+
+    # Configuration constants
+    _MAX_SLUG_LENGTH = 50
+    _MIN_WORD_BOUNDARY = 30
+    _GOAL_PREVIEW_LENGTH = 60
 
     def __init__(self, claude: ClaudeWrapper):
         """Initialize manifest architect.
@@ -23,7 +29,7 @@ class ManifestArchitect(BaseAgent):
         """Execute manifest creation.
 
         Returns:
-            Dict with manifest creation results
+            dict with manifest creation results
         """
         return {"status": "ready", "agent": "ManifestArchitect"}
 
@@ -35,54 +41,97 @@ class ManifestArchitect(BaseAgent):
             task_number: Task number for manifest naming
 
         Returns:
-            Dict with manifest data and path
+            dict with manifest data and path
         """
         self.logger.debug(
-            f"Creating manifest for task-{task_number:03d}: {goal[:60]}..."
+            f"Creating manifest for task-{task_number:03d}: "
+            f"{goal[:self._GOAL_PREVIEW_LENGTH]}..."
         )
 
-        # Build prompt for Claude
-        prompt = self._build_manifest_prompt(goal, task_number)
-
-        # Generate manifest using Claude
-        self.logger.debug("Calling Claude to generate manifest...")
-        response = self.claude.generate(prompt)
-
+        # Generate manifest using Claude Code
+        response = self._generate_manifest_with_claude(goal, task_number)
         if not response.success:
-            self.logger.error(f"Claude generation failed: {response.error}")
-            return {
-                "success": False,
-                "error": response.error,
-                "manifest_path": None,
-                "manifest_data": None,
-            }
+            return self._build_error_response(response.error)
 
-        # Parse response as JSON manifest
-        # Claude may wrap JSON in markdown code fences, so extract it
+        # Create manifest path
+        manifest_path = self._build_manifest_path(goal, task_number)
+
+        # Read the generated manifest from disk (Claude Code wrote it directly)
         try:
-            json_text = self._extract_json_from_response(response.result)
-            manifest_data = json.loads(json_text)
-
-            # Generate descriptive filename from goal
-            slug = self._generate_slug(goal)
-            manifest_path = f"manifests/task-{task_number:03d}-{slug}.manifest.json"
-
-            self.logger.info(f"Successfully created manifest: {manifest_path}")
-            return {
-                "success": True,
-                "manifest_path": manifest_path,
-                "manifest_data": manifest_data,
-                "error": None,
-            }
+            with open(manifest_path) as f:
+                manifest_data = json.load(f)
+        except FileNotFoundError:
+            return self._build_error_response(
+                f"Manifest file {manifest_path} was not created by Claude Code. "
+                "Ensure Claude Code writes the manifest file directly."
+            )
         except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse manifest JSON: {e}. Response preview: {response.result[:200]}"
-            self.logger.error(error_msg)
-            return {
-                "success": False,
-                "error": error_msg,
-                "manifest_path": None,
-                "manifest_data": None,
-            }
+            return self._build_error_response(
+                f"Invalid JSON in generated manifest: {e}"
+            )
+
+        self.logger.info(f"Successfully created manifest: {manifest_path}")
+        return self._build_success_response(manifest_path, manifest_data)
+
+    # ==================== Core Generation Methods ====================
+
+    def _generate_manifest_with_claude(self, goal: str, task_number: int):
+        """Generate manifest using Claude API.
+
+        Args:
+            goal: High-level goal description
+            task_number: Task number for manifest
+
+        Returns:
+            ClaudeResponse object with generation result
+        """
+        prompt = self._build_manifest_prompt(goal, task_number)
+        self.logger.debug("Calling Claude to generate manifest...")
+        return self.claude.generate(prompt)
+
+    def _build_manifest_prompt(self, goal: str, task_number: int) -> str:
+        """Build prompt for Claude Code to generate manifest directly.
+
+        Args:
+            goal: High-level goal description
+            task_number: Task number for manifest
+
+        Returns:
+            Formatted prompt string using template
+        """
+        template_manager = get_template_manager()
+        prompt = template_manager.render(
+            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
+        )
+
+        # Add instruction for Claude Code to write manifest file directly
+        manifest_path = self._build_manifest_path(goal, task_number)
+        prompt += f"""
+
+CRITICAL: Use your file editing tools to directly create this manifest file:
+- {manifest_path}
+
+- Write the complete JSON manifest to the file listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the JSON - actually write the file
+- Ensure the JSON is valid and matches the MAID v1.2 spec
+"""
+        return prompt
+
+    # ==================== Path and Naming Methods ====================
+
+    def _build_manifest_path(self, goal: str, task_number: int) -> str:
+        """Create the full path for the manifest file.
+
+        Args:
+            goal: High-level goal description
+            task_number: Task number for manifest
+
+        Returns:
+            Full path for manifest file
+        """
+        slug = self._generate_slug(goal)
+        return f"manifests/task-{task_number:03d}-{slug}.manifest.json"
 
     def _generate_slug(self, goal: str) -> str:
         """Generate a URL-friendly slug from goal description.
@@ -93,85 +142,91 @@ class ManifestArchitect(BaseAgent):
         Returns:
             Slug suitable for filenames (lowercase, hyphens, max 50 chars)
         """
-        import re
+        slug = self._sanitize_text_for_slug(goal)
+        slug = self._normalize_slug_separators(slug)
+        return self._enforce_slug_length(slug)
 
-        # Convert to lowercase
-        slug = goal.lower()
+    def _sanitize_text_for_slug(self, text: str) -> str:
+        """Clean and sanitize text for slug generation.
 
-        # Remove special characters, keep only alphanumeric and spaces
-        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+        Args:
+            text: Original text to sanitize
 
+        Returns:
+            Cleaned text with only alphanumeric and hyphens
+        """
+        # Convert to lowercase and remove special characters
+        sanitized = text.lower()
+        return re.sub(r"[^a-z0-9\s-]", "", sanitized)
+
+    def _normalize_slug_separators(self, text: str) -> str:
+        """Normalize spaces and hyphens to single hyphens.
+
+        Args:
+            text: Text with spaces and possibly multiple hyphens
+
+        Returns:
+            Text with normalized single hyphens
+        """
         # Replace spaces and multiple hyphens with single hyphen
-        slug = re.sub(r"[\s-]+", "-", slug)
-
+        normalized = re.sub(r"[\s-]+", "-", text)
         # Remove leading/trailing hyphens
-        slug = slug.strip("-")
+        return normalized.strip("-")
 
-        # Limit to 50 characters for reasonable filename length
-        if len(slug) > 50:
-            # Try to cut at word boundary
-            slug = slug[:50]
-            last_hyphen = slug.rfind("-")
-            if last_hyphen > 30:  # If there's a reasonable word boundary
-                slug = slug[:last_hyphen]
-
-        return slug
-
-    def _extract_json_from_response(self, response: str) -> str:
-        """Extract JSON from Claude response, handling markdown code fences.
+    def _enforce_slug_length(self, slug: str) -> str:
+        """Ensure slug meets length requirements.
 
         Args:
-            response: Raw response from Claude
+            slug: Original slug to check
 
         Returns:
-            Extracted JSON string
+            Slug truncated at word boundary if needed
         """
-        import re
+        if len(slug) <= self._MAX_SLUG_LENGTH:
+            return slug
 
-        # Try to find JSON within markdown code fences
-        # Pattern: ```json ... ``` or ``` ... ```
-        json_block_pattern = r"```(?:json)?\s*\n(.*?)\n```"
-        matches = re.findall(json_block_pattern, response, re.DOTALL)
+        # Try to cut at word boundary for cleaner truncation
+        truncated = slug[: self._MAX_SLUG_LENGTH]
+        last_separator = truncated.rfind("-")
 
-        if matches:
-            # Return the first JSON block found
-            return matches[0].strip()
+        # Use word boundary if it's reasonable, otherwise hard truncate
+        if last_separator > self._MIN_WORD_BOUNDARY:
+            return truncated[:last_separator]
 
-        # If no code fence, try to find JSON object directly
-        # Look for { ... } pattern
-        json_object_pattern = r"\{.*\}"
-        matches = re.findall(json_object_pattern, response, re.DOTALL)
+        return truncated
 
-        if matches:
-            # Validate each match by attempting to parse as JSON
-            # Return the first valid one (prioritizing longer valid JSON)
-            sorted_matches = sorted(matches, key=len, reverse=True)
-            for candidate in sorted_matches:
-                candidate = candidate.strip()
-                # Quick sanity check: must start with '{' and end with '}'
-                if not (candidate.startswith("{") and candidate.endswith("}")):
-                    continue
-                try:
-                    # Validate it parses as JSON
-                    json.loads(candidate)
-                    return candidate
-                except json.JSONDecodeError:
-                    continue  # Try next match
+    # ==================== Response Building Methods ====================
 
-        # If nothing found, return original (will likely fail JSON parsing)
-        return response.strip()
-
-    def _build_manifest_prompt(self, goal: str, task_number: int) -> str:
-        """Build prompt for Claude to generate manifest.
+    def _build_error_response(self, error: str) -> dict:
+        """Build standardized error response.
 
         Args:
-            goal: High-level goal description
-            task_number: Task number
+            error: Error message to include
 
         Returns:
-            Formatted prompt string
+            dict with error information
         """
-        template_manager = get_template_manager()
-        return template_manager.render(
-            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
-        )
+        self.logger.error(f"Manifest creation failed: {error}")
+        return {
+            "success": False,
+            "error": error,
+            "manifest_path": None,
+            "manifest_data": None,
+        }
+
+    def _build_success_response(self, manifest_path: str, manifest_data: dict) -> dict:
+        """Build standardized success response.
+
+        Args:
+            manifest_path: Path to the manifest file
+            manifest_data: Parsed manifest data
+
+        Returns:
+            dict with success information
+        """
+        return {
+            "success": True,
+            "manifest_path": manifest_path,
+            "manifest_data": manifest_data,
+            "error": None,
+        }

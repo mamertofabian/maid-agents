@@ -31,6 +31,13 @@
           }
         ],
         "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "ManifestArchitect",
+        "args": [],
+        "returns": "dict"
       }
     ]
   },

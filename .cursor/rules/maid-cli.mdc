@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+
+Refer to the @CLAUDE.md and use the make, maid, ccmaid commands as much as possible.
+after you've done your task run: `make lint`, `make format`. `make test`, `maid test` and `maid validate`

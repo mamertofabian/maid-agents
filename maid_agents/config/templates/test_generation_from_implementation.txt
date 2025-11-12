@@ -1,0 +1,70 @@
+You are generating behavioral tests for an existing implementation.
+
+This is the REVERSE workflow where implementation exists and we need to create/enhance tests to validate it.
+
+MANIFEST: ${manifest_path}
+GOAL: ${goal}
+
+IMPLEMENTATION FILE: ${implementation_path}
+```python
+${implementation_code}
+```
+
+EXPECTED ARTIFACTS (from manifest):
+${artifacts_summary}
+
+${existing_test_section}
+
+MODE: ${mode}
+
+YOUR TASK:
+${mode_specific_task}
+
+REQUIREMENTS:
+- MUST test every artifact in expectedArtifacts.contains
+- Use isinstance() for type checking
+- Write descriptive test names (test_verb_noun_condition)
+- Add docstrings to each test function
+- Import from correct module paths
+- Tests should PASS against the existing implementation (not TDD red phase)
+- Follow pytest conventions and MAID behavioral test patterns
+
+BEHAVIORAL TEST PATTERNS:
+Follow the same patterns as in the standard test_generation template:
+
+Example structure:
+```python
+"""Behavioral tests for Task-NNN: Description."""
+
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from module.path import ClassName, function_name
+
+
+def test_class_can_be_instantiated():
+    """Test ClassName can be instantiated."""
+    instance = ClassName()
+    assert instance is not None
+    assert isinstance(instance, ClassName)
+
+
+def test_function_with_parameters():
+    """Test function_name with valid parameters."""
+    result = function_name(param1="test", param2=42)
+    assert isinstance(result, ExpectedReturnType)
+    # Add specific assertions based on actual behavior
+```
+
+KEY DIFFERENCES FROM TDD:
+- Tests should PASS immediately (implementation exists)
+- Use actual implementation behavior to determine expected results
+- Don't write tests that assume implementation doesn't exist
+- Validate real behavior, not hypothetical behavior
+
+CRITICAL: Use your file editing tools to directly write to: ${test_path}
+
+Write the complete test file now. Make it behavioral, comprehensive, and ensure it validates the existing implementation.

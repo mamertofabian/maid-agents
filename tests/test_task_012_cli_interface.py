@@ -168,11 +168,12 @@ def test_implement_with_missing_manifest():
 
 def test_refactor_command_with_mock():
     """Test refactor command with --mock flag."""
-    mock_refactorer = MagicMock()
-    mock_refactorer.refactor.return_value = {
+    mock_orchestrator = MagicMock()
+    mock_orchestrator.run_refactoring_loop.return_value = {
         "success": True,
-        "files_affected": ["main.py"],
+        "iterations": 1,
         "improvements": ["Improved readability", "Added type hints"],
+        "files_written": ["main.py"],
     }
 
     with tempfile.NamedTemporaryFile(suffix=".manifest.json", delete=False) as tmp:
@@ -182,12 +183,14 @@ def test_refactor_command_with_mock():
 
     try:
         with patch("sys.argv", ["ccmaid", "--mock", "refactor", manifest_path]):
-            with patch("maid_agents.cli.main.Refactorer", return_value=mock_refactorer):
+            with patch(
+                "maid_agents.cli.main.MAIDOrchestrator", return_value=mock_orchestrator
+            ):
                 try:
                     main()
                 except SystemExit as e:
                     assert e.code == 0
-                    mock_refactorer.refactor.assert_called_once()
+                    mock_orchestrator.run_refactoring_loop.assert_called_once()
     finally:
         Path(manifest_path).unlink(missing_ok=True)
 
@@ -303,9 +306,10 @@ def test_implement_command_failure():
 
 def test_refactor_command_failure():
     """Test refactor command when refactoring fails."""
-    mock_refactorer = MagicMock()
-    mock_refactorer.refactor.return_value = {
+    mock_orchestrator = MagicMock()
+    mock_orchestrator.run_refactoring_loop.return_value = {
         "success": False,
+        "iterations": 1,
         "error": "Could not improve code",
     }
 
@@ -316,7 +320,9 @@ def test_refactor_command_failure():
 
     try:
         with patch("sys.argv", ["ccmaid", "--mock", "refactor", manifest_path]):
-            with patch("maid_agents.cli.main.Refactorer", return_value=mock_refactorer):
+            with patch(
+                "maid_agents.cli.main.MAIDOrchestrator", return_value=mock_orchestrator
+            ):
                 try:
                     main()
                 except SystemExit as e:

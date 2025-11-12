@@ -1,0 +1,81 @@
+{
+  "goal": "Add CLI command 'generate-test' to create or enhance behavioral tests from existing implementation files, supporting workflow where maid snapshot creates manifest and stub tests",
+  "taskType": "create",
+  "creatableFiles": [
+    "maid_agents/maid_agents/core/test_generator.py"
+  ],
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "maid_agents/agents/test_designer.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_019_generate_test_command.py",
+    "maid_agents/config/template_manager.py",
+    "maid_agents/config/templates/test_generation_from_implementation.txt",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/core/orchestrator.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/maid_agents/core/test_generator.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "TestGenerator",
+        "bases": []
+      },
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "TestGenerator",
+        "args": [
+          {
+            "name": "claude",
+            "type": "ClaudeWrapper"
+          }
+        ],
+        "returns": "None"
+      },
+      {
+        "type": "function",
+        "name": "generate_test_from_implementation",
+        "class": "TestGenerator",
+        "args": [
+          {
+            "name": "manifest_path",
+            "type": "str"
+          },
+          {
+            "name": "implementation_path",
+            "type": "str"
+          }
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "_detect_existing_test_file",
+        "class": "TestGenerator",
+        "args": [
+          {
+            "name": "manifest_data",
+            "type": "dict"
+          }
+        ],
+        "returns": "Optional[str]"
+      },
+      {
+        "type": "function",
+        "name": "_analyze_test_stub",
+        "class": "TestGenerator",
+        "args": [
+          {
+            "name": "test_file_path",
+            "type": "str"
+          }
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_019_generate_test_command.py", "-v"]
+}

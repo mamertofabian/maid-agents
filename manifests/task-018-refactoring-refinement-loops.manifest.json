@@ -1,0 +1,54 @@
+{
+  "goal": "Declare refactoring and refinement loop methods in MAIDOrchestrator that coordinate code refactoring and manifest/test refinement workflows",
+  "taskType": "edit",
+  "editableFiles": ["maid_agents/maid_agents/core/orchestrator.py"],
+  "readonlyFiles": [
+    "maid_agents/tests/test_task_018_refactoring_refinement_loops.py",
+    "maid_agents/maid_agents/agents/refactorer.py",
+    "maid_agents/maid_agents/agents/refiner.py",
+    "maid_agents/maid_agents/core/validation_runner.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_refactoring_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {
+            "name": "manifest_path",
+            "type": "str"
+          },
+          {
+            "name": "max_iterations",
+            "type": "int"
+          }
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_refinement_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {
+            "name": "manifest_path",
+            "type": "str"
+          },
+          {
+            "name": "refinement_goal",
+            "type": "str"
+          },
+          {
+            "name": "max_iterations",
+            "type": "int"
+          }
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "maid_agents/tests/test_task_018_refactoring_refinement_loops.py", "-v"]
+}
+

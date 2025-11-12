@@ -19,6 +19,8 @@ REFINEMENT REQUIREMENTS:
 1. **Manifest Completeness**:
    - Ensure all public APIs are declared as artifacts
    - Proper file categorization (creatableFiles vs editableFiles)
+     * editableFiles: Files that MUST exist and will be modified
+     * creatableFiles: Files that DON'T exist yet and will be created
    - Include all required artifact details (args, returns, types)
    - Goal description is clear and specific
    - Task type is correct (create/edit/refactor)
@@ -144,6 +146,8 @@ VALIDATION ERROR INTERPRETATION:
 - "Signature mismatch" → Fix args/returns in manifest to match test usage
 - "Invalid task type" → Use correct: create, edit, or refactor
 - "File not in manifest" → Add to creatableFiles or editableFiles
+- "File in editableFiles but does not exist" → Move file from editableFiles to creatableFiles
+- "File in creatableFiles already exists" → Move file from creatableFiles to editableFiles if it should be modified
 
 COMMON PITFALLS TO AVOID:
 - DO NOT remove artifacts from manifest without removing tests
@@ -155,25 +159,18 @@ COMMON PITFALLS TO AVOID:
 - DO use clear, specific test names
 - DO add meaningful assertions
 
+INSTRUCTIONS:
+1. Analyze the current manifest and tests based on the refinement goal and validation feedback
+2. Make improvements to fix validation errors and enhance quality
+3. Use your file editing tools to directly update the manifest and test files
+4. After making changes, provide a summary of improvements made
+
 OUTPUT FORMAT:
+After making file changes, provide a summary:
+
 ## Improvements Made:
 - Improvement 1: Brief description of what was improved and why
 - Improvement 2: Brief description
 - etc.
 
-## Updated Manifest:
-```json
-{
-  "goal": "Updated goal if changed",
-  ...
-}
-```
-
-## Updated Test File: path/to/test_file.py
-```python
-# Full updated test file content with improvements
-```
-
-If multiple test files, repeat the "Updated Test File" section for each.
-
-Begin your refinement analysis and improvements:
+Begin your refinement analysis and make the file changes directly:
