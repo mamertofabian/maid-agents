@@ -192,8 +192,9 @@ class Refiner(BaseAgent):
         Raises:
             ValueError: If manifest JSON cannot be extracted
         """
-        # Look for JSON code block after "## Refined Manifest:"
-        pattern = r"## Refined Manifest:?\s*```json\s*(.*?)\s*```"
+        # Look for JSON code block after "## Updated Manifest:" or "## Refined Manifest:"
+        # Template uses "Updated" but support both variants for robustness
+        pattern = r"## (?:Updated|Refined) Manifest:?\s*```json\s*(.*?)\s*```"
         match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
 
         if not match:
@@ -214,18 +215,39 @@ class Refiner(BaseAgent):
         Raises:
             ValueError: If test code cannot be extracted
         """
-        # Look for Python code block after "## Refined Tests"
-        # Format: ## Refined Tests (path/to/test.py):
-        pattern = r"## Refined Tests.*?\((.*?)\):?\s*```python\s*(.*?)\s*```"
-        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        # Look for Python code blocks after "## Updated Test File:" or "## Refined Tests"
+        # Template format: ## Updated Test File: path/to/test_file.py
+        # Also support: ## Refined Tests (path/to/test.py):
+        # Pattern matches both formats and handles multiple test files
+        test_files = {}
 
-        if not match:
+        # Try format: ## Updated Test File: path/to/test.py
+        pattern1 = (
+            r"## (?:Updated|Refined) Test File:\s*([^\n]+)\s*```python\s*(.*?)\s*```"
+        )
+        matches1 = re.finditer(pattern1, response, re.DOTALL | re.IGNORECASE)
+
+        for match in matches1:
+            test_path = match.group(1).strip()
+            test_code = match.group(2).strip()
+            test_files[test_path] = test_code
+
+        # Fallback: Try format with parentheses: ## Refined Tests (path/to/test.py):
+        if not test_files:
+            pattern2 = (
+                r"## (?:Updated|Refined) Tests.*?\((.*?)\):?\s*```python\s*(.*?)\s*```"
+            )
+            matches2 = re.finditer(pattern2, response, re.DOTALL | re.IGNORECASE)
+
+            for match in matches2:
+                test_path = match.group(1).strip()
+                test_code = match.group(2).strip()
+                test_files[test_path] = test_code
+
+        if not test_files:
             raise ValueError("Could not find refined test code in response")
 
-        test_path = match.group(1).strip()
-        test_code = match.group(2)
-
-        return {test_path: test_code}
+        return test_files
 
     def _build_refine_prompt(
         self,
