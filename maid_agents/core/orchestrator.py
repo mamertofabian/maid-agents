@@ -184,12 +184,11 @@ class MAIDOrchestrator:
         self._state = WorkflowState.PLANNING
         log_phase_start("PLANNING")
 
-        # Determine next task number by counting existing manifests
-        task_number = self._get_next_task_number()
-        logger.info(f"Planning task-{task_number:03d}: {goal}")
+        logger.info(f"Planning: {goal}")
 
         iteration = 0
         last_error = None
+        task_number = self._get_next_task_number()
 
         while iteration < max_iterations:
             iteration += 1
@@ -203,7 +202,7 @@ class MAIDOrchestrator:
                     "ManifestArchitect", "creating manifest", details=goal[:50]
                 )
                 manifest_result = self.manifest_architect.create_manifest(
-                    goal=goal, task_number=task_number
+                    goal=goal, task_number=task_number, previous_errors=last_error
                 )
 
                 if not manifest_result["success"]:

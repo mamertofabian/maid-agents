@@ -1,0 +1,58 @@
+{
+  "goal": "Improve the manifest designer agent to include description property at manifest level and for expected artifacts",
+  "description": "Enhance ManifestArchitect agent to generate manifests with a top-level 'description' field (in addition to 'goal') and add 'description' property to each artifact in expectedArtifacts. This provides richer context for both humans and downstream agents about what the manifest accomplishes and what each artifact is intended to do.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/agents/manifest_architect.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_023_manifest_descriptions.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/agents/manifest_architect.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ManifestArchitect",
+        "description": "Agent that generates MAID v1.2 compliant manifest files with enhanced descriptions"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "ManifestArchitect",
+        "args": [],
+        "returns": "dict",
+        "description": "Execute manifest creation agent (inherited from BaseAgent)"
+      },
+      {
+        "type": "function",
+        "name": "create_manifest",
+        "class": "ManifestArchitect",
+        "args": [
+          {
+            "name": "goal",
+            "type": "str"
+          },
+          {
+            "name": "task_number",
+            "type": "int"
+          },
+          {
+            "name": "previous_errors",
+            "type": "Optional[str]",
+            "default": "None"
+          }
+        ],
+        "returns": "dict",
+        "description": "Generates a manifest with description field and artifact-level descriptions"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_023_manifest_descriptions.py",
+    "-v"
+  ]
+}

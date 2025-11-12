@@ -56,3 +56,8 @@ filterwarnings = [
     "ignore:cannot collect test class.*TestDesigner:pytest.PytestCollectionWarning",
     "ignore:cannot collect test class.*TestGenerator:pytest.PytestCollectionWarning"
 ]
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+]

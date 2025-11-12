@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import re
+from typing import Optional
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
@@ -35,23 +36,28 @@ class ManifestArchitect(BaseAgent):
         """
         return {"status": "ready", "agent": "ManifestArchitect"}
 
-    def create_manifest(self, goal: str, task_number: int) -> dict:
+    def create_manifest(
+        self, goal: str, task_number: int, previous_errors: Optional[str] = None
+    ) -> dict:
         """Create manifest from goal description.
 
         Args:
             goal: High-level goal description
             task_number: Task number for manifest naming
+            previous_errors: Optional errors from previous attempts to incorporate
 
         Returns:
             dict with manifest data and path
         """
         self.logger.debug(
             f"Creating manifest for task-{task_number:03d}: "
-            f"{goal[:self._GOAL_PREVIEW_LENGTH]}..."
+            f"{goal[: self._GOAL_PREVIEW_LENGTH]}..."
         )
 
         # Generate manifest using Claude Code
-        response = self._generate_manifest_with_claude(goal, task_number)
+        response = self._generate_manifest_with_claude(
+            goal, task_number, previous_errors
+        )
         if not response.success:
             return self._build_error_response(response.error)
 
@@ -69,12 +75,15 @@ class ManifestArchitect(BaseAgent):
 
     # ==================== Core Generation Methods ====================
 
-    def _generate_manifest_with_claude(self, goal: str, task_number: int):
+    def _generate_manifest_with_claude(
+        self, goal: str, task_number: int, previous_errors: Optional[str] = None
+    ):
         """Generate manifest using Claude API with split prompts.
 
         Args:
             goal: High-level goal description
             task_number: Task number for manifest
+            previous_errors: Optional errors from previous attempts
 
         Returns:
             ClaudeResponse object with generation result
@@ -87,10 +96,25 @@ class ManifestArchitect(BaseAgent):
             "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
         )
 
+        # Add previous errors context if provided
+        error_context = ""
+        if previous_errors:
+            error_context = f"""
+
+IMPORTANT: Previous attempt(s) had the following issues:
+{previous_errors}
+
+Please address these issues in the new manifest. Ensure:
+- All validation errors are fixed
+- The manifest includes a top-level 'description' field (in addition to 'goal')
+- Each artifact in expectedArtifacts has a 'description' property
+"""
+
         # Add file path instruction to user message
         # Note: We give Claude Code flexibility on the slug, but require the task number format
         user_message = (
             prompts["user_message"]
+            + error_context
             + f"""
 
 CRITICAL: Use your file editing tools to directly create the manifest file.
@@ -105,6 +129,8 @@ Requirements:
 - Write the complete JSON manifest using your file editing capabilities
 - Do not just show the JSON - actually write the file
 - Ensure the JSON is valid and matches the MAID v1.2 spec
+- CRITICAL: Include a 'description' field at the manifest level
+- CRITICAL: Each artifact must have a 'description' property
 """
         )
 
