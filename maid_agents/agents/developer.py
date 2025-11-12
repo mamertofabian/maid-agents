@@ -1,7 +1,6 @@
 """Developer Agent - Phase 3: Implements code to pass tests."""
 
 import json
-import re
 from typing import Dict, Any, List, Optional
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -18,7 +17,6 @@ class Developer(BaseAgent):
     """
 
     # Constants for better maintainability
-    _CODE_BLOCK_PATTERN = r"```(?:python)?\s*\n(.*?)\n```"
     _DEFAULT_PLACEHOLDER = "(none specified)"
     _MANIFEST_PATH_TEMPLATE = "manifests/{}.manifest.json"
     _MAX_GOAL_LENGTH = 30
@@ -65,16 +63,30 @@ class Developer(BaseAgent):
         # Build implementation prompt
         prompt = self._build_implementation_prompt(manifest_data, test_errors)
 
-        # Generate implementation using Claude
+        # Let Claude Code write files directly using its tools
         response = self.claude.generate(prompt)
         if not response.success:
             return self._create_error_response(response.error)
 
-        # Extract and process generated code
-        code = self._extract_code_from_response(response.result)
+        # Read the generated code from disk (Claude Code wrote it directly)
         files_to_modify = self._get_modifiable_files(manifest_data)
+        if not files_to_modify:
+            return self._create_error_response("No files to modify in manifest")
 
-        return self._create_success_response(files_to_modify, code)
+        # Read the primary file that Claude Code should have written
+        try:
+            primary_file = files_to_modify[0]
+            with open(primary_file, "r") as f:
+                generated_code = f.read()
+        except FileNotFoundError:
+            return self._create_error_response(
+                f"File {primary_file} was not created by Claude Code. "
+                "Ensure Claude Code writes the file directly."
+            )
+        except Exception as e:
+            return self._create_error_response(f"Failed to read generated file: {e}")
+
+        return self._create_success_response(files_to_modify, generated_code)
 
     def _load_manifest(self, manifest_path: str) -> Optional[Dict[str, Any]]:
         """Load and parse manifest file with error handling.
@@ -138,29 +150,10 @@ class Developer(BaseAgent):
         editable = manifest_data.get("editableFiles", [])
         return creatable + editable
 
-    def _extract_code_from_response(self, response: str) -> str:
-        """Extract code from Claude response, handling markdown code fences.
-
-        Args:
-            response: Raw response from Claude containing code.
-
-        Returns:
-            Extracted code string, either from code blocks or raw response.
-        """
-        # Find all code blocks within markdown fences
-        matches = re.findall(self._CODE_BLOCK_PATTERN, response, re.DOTALL)
-
-        if matches:
-            # Return the largest code block (likely the main implementation)
-            return max(matches, key=len).strip()
-
-        # Fallback: return cleaned response if no code fences found
-        return response.strip()
-
     def _build_implementation_prompt(
         self, manifest_data: Dict[str, Any], test_errors: str
     ) -> str:
-        """Build prompt for Claude to generate implementation.
+        """Build prompt for Claude Code to generate implementation directly.
 
         Args:
             manifest_data: Parsed manifest data containing goal and artifacts.
@@ -180,7 +173,7 @@ class Developer(BaseAgent):
 
         # Render prompt using template
         template_manager = get_template_manager()
-        return template_manager.render(
+        prompt = template_manager.render(
             "implementation",
             manifest_path=manifest_filename,
             goal=goal,
@@ -188,6 +181,22 @@ class Developer(BaseAgent):
             artifacts_summary=artifacts_summary,
             files_to_modify=files_to_modify_str,
         )
+
+        # Add instruction for Claude Code to write files directly
+        files_to_modify = self._get_modifiable_files(manifest_data)
+        if files_to_modify:
+            files_list = "\n".join([f"- {path}" for path in files_to_modify])
+            prompt += f"""
+
+CRITICAL: Use your file editing tools to directly write/update these files:
+{files_list}
+
+- Write the complete Python implementation code to the file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Ensure the code matches all artifact signatures exactly
+"""
+        return prompt
 
     def _get_manifest_goal(self, manifest_data: Dict[str, Any]) -> str:
         """Extract goal from manifest with fallback.

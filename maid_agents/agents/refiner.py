@@ -1,7 +1,6 @@
 """Refiner Agent - Phase 2 Quality Gate: Improves manifest and test quality."""
 
 import json
-import re
 from pathlib import Path
 from typing import Dict, Any
 
@@ -89,7 +88,11 @@ class Refiner(BaseAgent):
 
         # Build prompt for Claude Code to refine and write files directly
         prompt = self._build_refine_prompt(
-            manifest_path, manifest_data, test_contents, refinement_goal, validation_feedback
+            manifest_path,
+            manifest_data,
+            test_contents,
+            refinement_goal,
+            validation_feedback,
         )
 
         # Let Claude Code make file changes directly using its tools
@@ -244,7 +247,9 @@ class Refiner(BaseAgent):
             with open(manifest_path) as f:
                 return json.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Manifest file not found after refinement: {manifest_path}")
+            raise FileNotFoundError(
+                f"Manifest file not found after refinement: {manifest_path}"
+            )
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in refined manifest: {e}")
 

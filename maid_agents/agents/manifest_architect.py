@@ -2,7 +2,6 @@
 
 import json
 import re
-from typing import Optional
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
@@ -16,11 +15,6 @@ class ManifestArchitect(BaseAgent):
     _MAX_SLUG_LENGTH = 50
     _MIN_WORD_BOUNDARY = 30
     _GOAL_PREVIEW_LENGTH = 60
-    _ERROR_PREVIEW_LENGTH = 200
-
-    # JSON validation patterns
-    _JSON_FENCE_PATTERN = r"```(?:json)?\s*\n(.*?)\n```"
-    _JSON_OBJECT_PATTERN = r"\{.*\}"
 
     def __init__(self, claude: ClaudeWrapper):
         """Initialize manifest architect.
@@ -54,21 +48,30 @@ class ManifestArchitect(BaseAgent):
             f"{goal[:self._GOAL_PREVIEW_LENGTH]}..."
         )
 
-        # Generate manifest using Claude
+        # Generate manifest using Claude Code
         response = self._generate_manifest_with_claude(goal, task_number)
         if not response.success:
             return self._build_error_response(response.error)
 
-        # Parse and validate manifest
-        manifest_result = self._extract_and_validate_manifest(response.result)
-        if not manifest_result["success"]:
-            return self._build_error_response(manifest_result["error"])
-
         # Create manifest path
         manifest_path = self._build_manifest_path(goal, task_number)
 
+        # Read the generated manifest from disk (Claude Code wrote it directly)
+        try:
+            with open(manifest_path) as f:
+                manifest_data = json.load(f)
+        except FileNotFoundError:
+            return self._build_error_response(
+                f"Manifest file {manifest_path} was not created by Claude Code. "
+                "Ensure Claude Code writes the manifest file directly."
+            )
+        except json.JSONDecodeError as e:
+            return self._build_error_response(
+                f"Invalid JSON in generated manifest: {e}"
+            )
+
         self.logger.info(f"Successfully created manifest: {manifest_path}")
-        return self._build_success_response(manifest_path, manifest_result["data"])
+        return self._build_success_response(manifest_path, manifest_data)
 
     # ==================== Core Generation Methods ====================
 
@@ -87,7 +90,7 @@ class ManifestArchitect(BaseAgent):
         return self.claude.generate(prompt)
 
     def _build_manifest_prompt(self, goal: str, task_number: int) -> str:
-        """Build prompt for Claude to generate manifest.
+        """Build prompt for Claude Code to generate manifest directly.
 
         Args:
             goal: High-level goal description
@@ -97,9 +100,23 @@ class ManifestArchitect(BaseAgent):
             Formatted prompt string using template
         """
         template_manager = get_template_manager()
-        return template_manager.render(
+        prompt = template_manager.render(
             "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
         )
+
+        # Add instruction for Claude Code to write manifest file directly
+        manifest_path = self._build_manifest_path(goal, task_number)
+        prompt += f"""
+
+CRITICAL: Use your file editing tools to directly create this manifest file:
+- {manifest_path}
+
+- Write the complete JSON manifest to the file listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the JSON - actually write the file
+- Ensure the JSON is valid and matches the MAID v1.2 spec
+"""
+        return prompt
 
     # ==================== Path and Naming Methods ====================
 
@@ -178,131 +195,6 @@ class ManifestArchitect(BaseAgent):
 
         return truncated
 
-    # ==================== JSON Extraction and Validation ====================
-
-    def _extract_and_validate_manifest(self, response_text: str) -> dict:
-        """Extract and validate manifest JSON from Claude's response.
-
-        Args:
-            response_text: Raw response from Claude
-
-        Returns:
-            dict with success status and parsed data or error
-        """
-        try:
-            json_content = self._extract_json_content(response_text)
-            manifest_data = json.loads(json_content)
-            return {"success": True, "data": manifest_data}
-        except json.JSONDecodeError as e:
-            error_msg = self._format_parse_error(e, response_text)
-            self.logger.error(error_msg)
-            return {"success": False, "error": error_msg}
-
-    def _extract_json_content(self, response: str) -> str:
-        """Extract JSON content from various response formats.
-
-        Args:
-            response: Raw response from Claude
-
-        Returns:
-            Extracted JSON string
-        """
-        # Try markdown code fence extraction first (most common)
-        json_from_fence = self._try_extract_from_markdown(response)
-        if json_from_fence:
-            return json_from_fence
-
-        # Fall back to direct JSON object extraction
-        json_object = self._try_extract_raw_json(response)
-        if json_object:
-            return json_object
-
-        # If nothing found, return original (will likely fail JSON parsing)
-        return response.strip()
-
-    def _try_extract_from_markdown(self, response: str) -> Optional[str]:
-        """Attempt to extract JSON from markdown code fence.
-
-        Args:
-            response: Raw response possibly containing markdown
-
-        Returns:
-            Extracted JSON string or None if not found
-        """
-        matches = re.findall(self._JSON_FENCE_PATTERN, response, re.DOTALL)
-
-        if matches:
-            return matches[0].strip()
-        return None
-
-    def _try_extract_raw_json(self, response: str) -> Optional[str]:
-        """Attempt to extract raw JSON object from response.
-
-        Args:
-            response: Raw response possibly containing JSON
-
-        Returns:
-            Valid JSON string or None if not found
-        """
-        matches = re.findall(self._JSON_OBJECT_PATTERN, response, re.DOTALL)
-
-        if not matches:
-            return None
-
-        # Validate each match and return the best one
-        return self._select_best_json_match(matches)
-
-    def _select_best_json_match(self, candidates: list) -> Optional[str]:
-        """Select the best valid JSON from candidates.
-
-        Args:
-            candidates: List of potential JSON strings
-
-        Returns:
-            Best valid JSON string or None if none valid
-        """
-        # Prefer longer matches (more complete JSON)
-        sorted_candidates = sorted(candidates, key=len, reverse=True)
-
-        for candidate in sorted_candidates:
-            candidate = candidate.strip()
-
-            # Quick structural check
-            if not self._has_json_structure(candidate):
-                continue
-
-            # Validate it parses correctly
-            if self._validate_json_syntax(candidate):
-                return candidate
-
-        return None
-
-    def _has_json_structure(self, text: str) -> bool:
-        """Check if text has basic JSON structure.
-
-        Args:
-            text: Text to check for JSON structure
-
-        Returns:
-            True if text appears to be JSON object
-        """
-        return text.startswith("{") and text.endswith("}")
-
-    def _validate_json_syntax(self, text: str) -> bool:
-        """Validate JSON syntax by attempting to parse.
-
-        Args:
-            text: Text to validate as JSON
-
-        Returns:
-            True if valid JSON syntax
-        """
-        try:
-            json.loads(text)
-            return True
-        except json.JSONDecodeError:
-            return False
-
     # ==================== Response Building Methods ====================
 
     def _build_error_response(self, error: str) -> dict:
@@ -338,20 +230,3 @@ class ManifestArchitect(BaseAgent):
             "manifest_data": manifest_data,
             "error": None,
         }
-
-    def _format_parse_error(
-        self, error: json.JSONDecodeError, response_text: str
-    ) -> str:
-        """Format JSON parse error with helpful context.
-
-        Args:
-            error: JSON decode error that occurred
-            response_text: Original response text for context
-
-        Returns:
-            Formatted error message with context
-        """
-        preview = response_text[: self._ERROR_PREVIEW_LENGTH]
-        if len(response_text) > self._ERROR_PREVIEW_LENGTH:
-            preview += "..."
-        return f"Failed to parse manifest JSON: {error}. Response preview: {preview}"

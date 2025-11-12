@@ -1,8 +1,7 @@
 """Test Designer Agent - Phase 2: Creates behavioral tests from manifests."""
 
 import json
-import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from maid_agents.agents.base_agent import BaseAgent
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
@@ -49,16 +48,40 @@ class TestDesigner(BaseAgent):
 
         manifest_data = load_result["data"]
 
-        # Build prompt for Claude
+        # Build prompt for Claude Code
         prompt = self._build_test_prompt(manifest_data, manifest_path)
 
-        # Generate tests using Claude
+        # Let Claude Code write test files directly using its tools
         response = self.claude.generate(prompt)
         if not response.success:
             return self._create_error_result(response.error)
 
-        # Extract and process generated code
-        return self._process_generated_code(response.result, manifest_data)
+        # Read the generated test files from disk (Claude Code wrote them directly)
+        test_paths = self._extract_test_paths(manifest_data)
+        if not test_paths:
+            return self._create_error_result(
+                "No test files found in manifest readonlyFiles"
+            )
+
+        # Read the primary test file that Claude Code should have written
+        try:
+            primary_test_path = test_paths[0]
+            with open(primary_test_path, "r") as f:
+                test_code = f.read()
+        except FileNotFoundError:
+            return self._create_error_result(
+                f"Test file {primary_test_path} was not created by Claude Code. "
+                "Ensure Claude Code writes the test file directly."
+            )
+        except Exception as e:
+            return self._create_error_result(f"Failed to read generated test file: {e}")
+
+        return {
+            "success": True,
+            "test_paths": test_paths,
+            "test_code": test_code,
+            "error": None,
+        }
 
     def _load_manifest(self, manifest_path: str) -> Dict[str, Any]:
         """Load and parse manifest file with error handling.
@@ -94,34 +117,6 @@ class TestDesigner(BaseAgent):
             "test_code": None,
         }
 
-    def _process_generated_code(
-        self, response_text: str, manifest_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Process generated code from Claude response.
-
-        Args:
-            response_text: Raw response from Claude
-            manifest_data: Parsed manifest data
-
-        Returns:
-            Dict with processed test code and paths
-        """
-        try:
-            test_code = self._extract_code_from_response(response_text)
-            test_paths = self._extract_test_paths(manifest_data)
-
-            return {
-                "success": True,
-                "test_paths": test_paths,
-                "test_code": test_code,
-                "error": None,
-            }
-        except Exception as error:
-            error_preview = response_text[:200] if response_text else "Empty response"
-            return self._create_error_result(
-                f"Failed to extract test code: {error}. Response preview: {error_preview}"
-            )
-
     def _extract_test_paths(self, manifest_data: Dict[str, Any]) -> List[str]:
         """Extract test file paths from manifest data.
 
@@ -134,63 +129,10 @@ class TestDesigner(BaseAgent):
         readonly_files = manifest_data.get("readonlyFiles", [])
         return [file_path for file_path in readonly_files if "test_" in file_path]
 
-    def _extract_code_from_response(self, response: str) -> str:
-        """Extract Python code from Claude response, handling markdown code fences.
-
-        Args:
-            response: Raw response from Claude
-
-        Returns:
-            Extracted Python code string
-
-        Raises:
-            ValueError: If no valid Python code could be extracted
-        """
-        # Check for markdown code blocks first
-        code = self._extract_markdown_code_block(response)
-        if code:
-            return code
-
-        # Check if response contains Python syntax indicators
-        if self._contains_python_syntax(response):
-            return response.strip()
-
-        # Return stripped response as fallback
-        return response.strip()
-
-    def _extract_markdown_code_block(self, response: str) -> Optional[str]:
-        """Extract code from markdown code fence blocks.
-
-        Args:
-            response: Text that may contain markdown code blocks
-
-        Returns:
-            Extracted code or None if no code blocks found
-        """
-        # Pattern matches ```python ... ``` or ``` ... ```
-        python_block_pattern = r"```(?:python)?\s*\n(.*?)\n```"
-        matches = re.findall(python_block_pattern, response, re.DOTALL)
-
-        if matches:
-            return matches[0].strip()
-        return None
-
-    def _contains_python_syntax(self, text: str) -> bool:
-        """Check if text contains Python syntax indicators.
-
-        Args:
-            text: Text to check for Python syntax
-
-        Returns:
-            True if text appears to contain Python code
-        """
-        python_indicators = ["import ", "def ", "class ", "@"]
-        return any(indicator in text for indicator in python_indicators)
-
     def _build_test_prompt(
         self, manifest_data: Dict[str, Any], manifest_path: str
     ) -> str:
-        """Build prompt for Claude to generate tests.
+        """Build prompt for Claude Code to generate tests directly.
 
         Args:
             manifest_data: Parsed manifest data
@@ -205,12 +147,28 @@ class TestDesigner(BaseAgent):
         )
 
         template_manager = get_template_manager()
-        return template_manager.render(
+        prompt = template_manager.render(
             "test_generation",
             manifest_path=manifest_path,
             goal=goal,
             artifacts_summary=artifacts_summary,
         )
+
+        # Add instruction for Claude Code to write test files directly
+        test_paths = self._extract_test_paths(manifest_data)
+        if test_paths:
+            files_list = "\n".join([f"- {path}" for path in test_paths])
+            prompt += f"""
+
+CRITICAL: Use your file editing tools to directly create/update these test files:
+{files_list}
+
+- Write the complete Python test code to the test file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Ensure tests are behavioral (call methods, verify behavior)
+"""
+        return prompt
 
     def _summarize_artifacts(self, artifacts: Dict[str, Any]) -> str:
         """Summarize artifacts for prompt with detailed signatures.

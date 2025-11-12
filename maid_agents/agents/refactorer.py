@@ -1,8 +1,6 @@
 """Refactorer Agent - Phase 3.5: Improves code quality while maintaining compliance."""
 
 import json
-import re
-from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -61,25 +59,28 @@ class Refactorer(BaseAgent):
         # Load current code from target files
         file_contents = self._load_file_contents(files_to_refactor)
 
-        # Generate refactoring via Claude
+        # Generate refactoring via Claude Code
         refactoring_result = self._generate_refactoring(
             manifest_data, file_contents, validation_feedback
         )
         if not refactoring_result["success"]:
             return refactoring_result
 
-        # Write refactored code to files
-        write_result = self._write_refactored_files(
-            refactoring_result["refactored_files"], refactoring_result["improvements"]
-        )
-        if not write_result["success"]:
-            return write_result
+        # Read refactored files from disk (Claude Code wrote them directly)
+        try:
+            refactored_files = self._read_refactored_files(files_to_refactor)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to read refactored files from disk: {e}",
+                "improvements": refactoring_result["improvements"],
+            }
 
         return self._create_success_response(
             refactoring_result["improvements"],
             refactoring_result["raw_response"],
             files_to_refactor,
-            write_result["files_written"],
+            list(refactored_files.keys()),
         )
 
     def _load_and_validate_manifest(self, manifest_path: str) -> Dict[str, Any]:
@@ -231,14 +232,10 @@ class Refactorer(BaseAgent):
             }
 
         improvements = self._extract_improvements(response.result)
-        refactored_files = self._parse_refactored_code(
-            response.result, list(file_contents.keys())
-        )
 
         return {
             "success": True,
             "improvements": improvements,
-            "refactored_files": refactored_files,
             "raw_response": response.result,
         }
 
@@ -294,142 +291,30 @@ class Refactorer(BaseAgent):
             len(line) > 2 and line[0].isdigit() and line[1] in ".)"
         )
 
-    def _parse_refactored_code(
-        self, response: str, file_paths: List[str]
-    ) -> Dict[str, str]:
-        """Parse refactored code blocks from Claude's response.
+    def _read_refactored_files(self, file_paths: List[str]) -> Dict[str, str]:
+        """Read refactored files from disk after Claude Code writes them.
 
         Args:
-            response: Claude's refactoring response
             file_paths: List of file paths that were refactored
 
         Returns:
             Dict mapping file paths to their refactored code
-        """
-        # Try to extract file-specific code blocks first
-        refactored_files = self._extract_file_code_blocks(response, file_paths)
 
-        # Fall back to single code block extraction if needed
-        if not refactored_files and file_paths:
-            refactored_files = self._extract_fallback_code_block(response, file_paths)
-
-        return refactored_files
-
-    def _extract_file_code_blocks(
-        self, response: str, file_paths: List[str]
-    ) -> Dict[str, str]:
-        """Extract code blocks with file path labels.
-
-        Args:
-            response: Claude's response text
-            file_paths: Expected file paths
-
-        Returns:
-            Dict mapping file paths to code
+        Raises:
+            FileNotFoundError: If any file doesn't exist
         """
         refactored_files = {}
-
-        # Pattern to match: File: path\n```python\ncode\n```
-        pattern = r"File:\s*([^\n]+)\s*\n\s*```python\s*\n(.*?)\n\s*```"
-        matches = re.findall(pattern, response, re.DOTALL)
-
-        for file_path, code in matches:
-            matched_path = self._match_file_path(file_path.strip(), file_paths)
-            if matched_path:
-                refactored_files[matched_path] = code.strip()
-
-        return refactored_files
-
-    def _match_file_path(
-        self, response_path: str, file_paths: List[str]
-    ) -> Optional[str]:
-        """Match a response path to one of the expected file paths.
-
-        Args:
-            response_path: Path from Claude's response
-            file_paths: List of expected paths
-
-        Returns:
-            Matching original path or None
-        """
-        normalized_response = self._normalize_path(response_path)
-
-        for original_path in file_paths:
-            if normalized_response == self._normalize_path(original_path):
-                return original_path
-
-        return None
-
-    def _extract_fallback_code_block(
-        self, response: str, file_paths: List[str]
-    ) -> Dict[str, str]:
-        """Extract a single unlabeled code block as fallback.
-
-        Args:
-            response: Claude's response text
-            file_paths: List of file paths
-
-        Returns:
-            Dict with first file mapped to largest code block
-        """
-        code_block_pattern = r"```python\n(.*?)\n```"
-        code_matches = re.findall(code_block_pattern, response, re.DOTALL)
-
-        if not code_matches:
-            return {}
-
-        # Use the largest code block for the first file
-        largest_code = max(code_matches, key=len).strip()
-        return {file_paths[0]: largest_code}
-
-    def _write_refactored_files(
-        self, refactored_files: Dict[str, str], improvements: List[str]
-    ) -> Dict[str, Any]:
-        """Write refactored code to files.
-
-        Args:
-            refactored_files: Dict mapping paths to refactored code
-            improvements: List of improvements for error response
-
-        Returns:
-            Dict with success status and files written
-        """
-        files_written = []
-
-        for file_path, code in refactored_files.items():
-            write_result = self._write_single_file(file_path, code)
-            if not write_result["success"]:
-                return self._create_write_error_response(
-                    write_result["error"], improvements
-                )
-            files_written.append(write_result["path"])
-
-        return {"success": True, "files_written": files_written}
-
-    def _write_single_file(self, file_path: str, code: str) -> Dict[str, Any]:
-        """Write code to a single file.
-
-        Args:
-            file_path: Path to write to
-            code: Code content to write
-
-        Returns:
-            Dict with success status and normalized path or error
-        """
-        try:
+        for file_path in file_paths:
             normalized_path = self._normalize_path(file_path)
-            target_file = Path(normalized_path)
-            target_file.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(target_file, "w") as f:
-                f.write(code)
-
-            return {"success": True, "path": normalized_path}
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to write refactored code to {file_path}: {e}",
-            }
+            try:
+                with open(normalized_path, "r") as f:
+                    refactored_files[file_path] = f.read()
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"File {normalized_path} was not updated by Claude Code. "
+                    "Ensure Claude Code writes the file directly."
+                )
+        return refactored_files
 
     def _create_error_response(self, error: str) -> Dict[str, Any]:
         """Create a standardized error response.
@@ -444,24 +329,6 @@ class Refactorer(BaseAgent):
             "success": False,
             "error": error,
             "improvements": [],
-        }
-
-    def _create_write_error_response(
-        self, error: str, improvements: List[str]
-    ) -> Dict[str, Any]:
-        """Create error response for write failures.
-
-        Args:
-            error: Error message
-            improvements: List of attempted improvements
-
-        Returns:
-            Error response dictionary with improvements
-        """
-        return {
-            "success": False,
-            "error": error,
-            "improvements": improvements,
         }
 
     def _create_success_response(
@@ -497,7 +364,7 @@ class Refactorer(BaseAgent):
         file_contents: Dict[str, Any],
         validation_feedback: str = "",
     ) -> str:
-        """Build prompt for Claude to refactor code.
+        """Build prompt for Claude Code to refactor code directly.
 
         Args:
             manifest_data: Parsed manifest data
@@ -512,11 +379,25 @@ class Refactorer(BaseAgent):
         feedback_section = self._format_feedback_section(validation_feedback)
 
         template_manager = get_template_manager()
-        return template_manager.render(
+        prompt = template_manager.render(
             "refactor",
             goal=goal,
             file_contents=files_section + feedback_section,
         )
+
+        # Add instruction for Claude Code to write files directly
+        files_list = "\n".join([f"- {path}" for path in file_contents.keys()])
+        prompt += f"""
+
+CRITICAL: Use your file editing tools to directly update these files:
+{files_list}
+
+- Refactor the code in the file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Maintain all manifest requirements and test compatibility
+"""
+        return prompt
 
     def _format_files_section(self, file_contents: Dict[str, str]) -> str:
         """Format file contents for prompt.
