@@ -1,0 +1,72 @@
+{
+  "goal": "Update test generator agent to generate passing tests with validation loop",
+  "taskType": "enhance",
+  "supersedes": ["task-019-generate-test-command.manifest.json"],
+  "editableFiles": [
+    "maid_agents/agents/test_generator.py",
+    "maid_agents/cli/main.py"
+  ],
+  "creatableFiles": [
+    "tests/test_task_022_passing_test_generation.py"
+  ],
+  "readonlyFiles": [
+    "maid_agents/core/validation_runner.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/config/template_manager.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/agents/test_generator.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "TestGenerator"
+      },
+      {
+        "type": "attribute",
+        "class": "TestGenerator",
+        "name": "validation_runner"
+      },
+      {
+        "type": "function",
+        "class": "TestGenerator",
+        "name": "generate_test_from_implementation",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "implementation_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "class": "TestGenerator",
+        "name": "_run_test_validation_loop",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "test_path", "type": "str"},
+          {"name": "implementation_path", "type": "str"},
+          {"name": "manifest_data", "type": "Dict[str, Any]"},
+          {"name": "max_iterations", "type": "int"}
+        ],
+        "returns": "Dict[str, Any]"
+      },
+      {
+        "type": "function",
+        "class": "TestGenerator",
+        "name": "_fix_failing_tests_with_claude",
+        "args": [
+          {"name": "test_path", "type": "str"},
+          {"name": "test_errors", "type": "str"},
+          {"name": "manifest_data", "type": "Dict[str, Any]"},
+          {"name": "implementation_path", "type": "str"}
+        ],
+        "returns": "Dict[str, Any]"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_022_passing_test_generation.py",
+    "-v"
+  ]
+}

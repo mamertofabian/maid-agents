@@ -196,6 +196,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         required=True,
         help="Path to existing implementation file",
     )
+    generate_test_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=5,
+        help="Maximum iterations for fixing failing tests (default: 5)",
+    )
 
     args = parser.parse_args()
 
@@ -539,23 +545,28 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             result = generator.generate_test_from_implementation(
                 manifest_path=manifest_path,
                 implementation_path=implementation_path,
+                max_iterations=args.max_iterations,
             )
 
         if result["success"]:
             mode = result.get("mode", "created")
+            iterations = result.get("iterations", 0)
             _print_success(
                 f"Test generation complete ({mode})",
                 details={
                     "Test file": result["test_path"],
                     "Mode": mode,
+                    "Iterations": iterations,
+                    "Status": "All tests passing ✓",
                 },
             )
             sys.exit(0)
         else:
+            iterations = result.get("iterations", 0)
             _print_error(
-                "Test generation failed",
+                f"Test generation failed after {iterations} iteration(s)",
                 details=result.get("error"),
-                suggestion="Check that the manifest and implementation file are valid",
+                suggestion="Check that the manifest and implementation file are valid, or increase --max-iterations",
             )
             sys.exit(1)
 
