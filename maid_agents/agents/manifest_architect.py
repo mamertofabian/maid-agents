@@ -120,38 +120,6 @@ CRITICAL: Use your file editing tools to directly create this manifest file:
         self.logger.debug("Calling Claude to generate manifest with split prompts...")
         return claude_with_system.generate(user_message)
 
-    def _build_manifest_prompt(self, goal: str, task_number: int) -> str:
-        """Build prompt for Claude Code to generate manifest directly.
-
-        DEPRECATED: Use _generate_manifest_with_claude() which uses split prompts.
-        This method is kept for backward compatibility.
-
-        Args:
-            goal: High-level goal description
-            task_number: Task number for manifest
-
-        Returns:
-            Formatted prompt string using template
-        """
-        template_manager = get_template_manager()
-        prompt = template_manager.render(
-            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
-        )
-
-        # Add instruction for Claude Code to write manifest file directly
-        manifest_path = self._build_manifest_path(goal, task_number)
-        prompt += f"""
-
-CRITICAL: Use your file editing tools to directly create this manifest file:
-- {manifest_path}
-
-- Write the complete JSON manifest to the file listed above
-- Make all changes directly using your file editing capabilities
-- Do not just show the JSON - actually write the file
-- Ensure the JSON is valid and matches the MAID v1.2 spec
-"""
-        return prompt
-
     # ==================== Path and Naming Methods ====================
 
     def _build_manifest_path(self, goal: str, task_number: int) -> str:
