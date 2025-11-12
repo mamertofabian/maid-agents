@@ -64,6 +64,16 @@ class Refiner(BaseAgent):
                 "improvements": [],
             }
 
+        # Validate file existence for editableFiles and creatableFiles
+        file_validation_errors = self._validate_file_categorization(manifest_data)
+        if file_validation_errors:
+            # Add file validation errors to validation feedback
+            validation_feedback = (
+                f"{validation_feedback}\n\nFILE CATEGORIZATION ERRORS:\n{file_validation_errors}"
+                if validation_feedback
+                else f"FILE CATEGORIZATION ERRORS:\n{file_validation_errors}"
+            )
+
         # Load test files
         test_files = manifest_data.get("readonlyFiles", [])
         test_contents = self._load_test_files(test_files)
@@ -115,6 +125,41 @@ class Refiner(BaseAgent):
                 "test_code": {},
                 "improvements": [],
             }
+
+    def _validate_file_categorization(self, manifest_data: Dict[str, Any]) -> str:
+        """Validate that editableFiles exist and creatableFiles don't exist.
+
+        Args:
+            manifest_data: Parsed manifest dictionary
+
+        Returns:
+            String with validation errors, or empty string if no errors
+        """
+        errors = []
+        editable_files = manifest_data.get("editableFiles", [])
+        creatable_files = manifest_data.get("creatableFiles", [])
+
+        # Check that editableFiles exist
+        for file_path in editable_files:
+            if not Path(file_path).exists():
+                errors.append(
+                    f"- File '{file_path}' is in editableFiles but does not exist. "
+                    f"It should be moved to creatableFiles."
+                )
+
+        # Warn if creatableFiles already exist (might be intentional, but worth noting)
+        existing_creatable = []
+        for file_path in creatable_files:
+            if Path(file_path).exists():
+                existing_creatable.append(file_path)
+
+        if existing_creatable:
+            errors.append(
+                f"- Files in creatableFiles already exist: {', '.join(existing_creatable)}. "
+                f"Consider moving them to editableFiles if they should be modified."
+            )
+
+        return "\n".join(errors) if errors else ""
 
     def _load_test_files(self, test_file_paths: list) -> Dict[str, str]:
         """Load contents of test files.
