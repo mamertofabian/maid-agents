@@ -34,6 +34,7 @@ class ClaudeWrapper:
 
     ALLOWED_TOOLS = [
         "Bash(python -m pytest:*)",
+        "Bash(python tests/:*)",
         "Bash(maid test:*)",
         "Bash(maid validate:*)",
         "Bash(black:*)",
