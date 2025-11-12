@@ -1,6 +1,6 @@
 {
   "goal": "Add system prompt support to split behavioral guidance (HOW) from task details (WHAT) for 67% token reduction and more effective agent behavior",
-  "taskType": "enhance",
+  "taskType": "edit",
   "creatableFiles": [
     "maid_agents/config/templates/system/manifest_creation_system.txt",
     "maid_agents/config/templates/system/test_generation_system.txt",

@@ -1,6 +1,6 @@
 {
   "goal": "Update test generator agent to generate passing tests with validation loop",
-  "taskType": "enhance",
+  "taskType": "edit",
   "supersedes": ["task-019-generate-test-command.manifest.json"],
   "editableFiles": [
     "maid_agents/agents/test_generator.py",
