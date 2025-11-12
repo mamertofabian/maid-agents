@@ -50,6 +50,7 @@ class ClaudeWrapper:
         model: str = DEFAULT_MODEL,
         timeout: int = DEFAULT_TIMEOUT,
         temperature: float = DEFAULT_TEMPERATURE,
+        system_prompt: Optional[str] = None,
     ) -> None:
         """Initialize Claude wrapper.
 
@@ -58,11 +59,13 @@ class ClaudeWrapper:
             model: Claude model to use (e.g., "opus")
             timeout: Request timeout in seconds (default: 300)
             temperature: Sampling temperature 0.0-1.0 (default: 0.0 for deterministic)
+            system_prompt: Additional system prompt to append (uses --append-system-prompt)
         """
         self.mock_mode = mock_mode
         self.model = model
         self.timeout = timeout
         self.temperature = temperature
+        self.system_prompt = system_prompt
         self.logger = logger
 
     def generate(self, prompt: str) -> ClaudeResponse:
@@ -154,7 +157,7 @@ class ClaudeWrapper:
         Returns:
             List of command arguments
         """
-        return [
+        command = [
             "claude",
             "--print",
             prompt,
@@ -168,6 +171,15 @@ class ClaudeWrapper:
             "--allowedTools",
             ",".join(self.ALLOWED_TOOLS),
         ]
+
+        # Add system prompt if provided
+        if self.system_prompt:
+            command.extend(["--append-system-prompt", self.system_prompt])
+            self.logger.debug(
+                f"Using custom system prompt ({len(self.system_prompt)} chars)"
+            )
+
+        return command
 
     def _log_command_preview(self, command: List[str]) -> None:
         """Log a preview of the command being executed.

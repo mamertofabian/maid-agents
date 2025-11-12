@@ -65,8 +65,8 @@ class TestGenerator:
             if test_analysis.get("exists"):
                 existing_test_code = test_analysis.get("code")
 
-        # Build prompt for Claude Code
-        prompt = self._build_test_enhancement_prompt(
+        # Generate/enhance tests with split prompts
+        response = self._generate_tests_with_claude(
             manifest_data=manifest_data,
             manifest_path=manifest_path,
             implementation_code=implementation_code,
@@ -75,9 +75,6 @@ class TestGenerator:
             existing_test_path=existing_test_path,
             test_analysis=test_analysis,
         )
-
-        # Generate/enhance tests via Claude Code
-        response = self.claude.generate(prompt)
         if not response.success:
             return self._create_error_result(response.error)
 
@@ -238,6 +235,105 @@ class TestGenerator:
         slug = goal.lower().replace(" ", "_")[:50]
         return f"tests/test_{slug}.py"
 
+    def _generate_tests_with_claude(
+        self,
+        manifest_data: Dict[str, Any],
+        manifest_path: str,
+        implementation_code: str,
+        implementation_path: str,
+        existing_test_code: Optional[str],
+        existing_test_path: Optional[str],
+        test_analysis: Optional[Dict[str, Any]],
+    ):
+        """Generate tests using Claude API with split prompts.
+
+        Args:
+            manifest_data: Parsed manifest data
+            manifest_path: Path to manifest
+            implementation_code: Existing implementation code
+            implementation_path: Path to implementation
+            existing_test_code: Existing test code if any
+            existing_test_path: Path to existing test
+            test_analysis: Analysis of existing test
+
+        Returns:
+            ClaudeResponse object with generation result
+        """
+        artifacts = manifest_data.get("expectedArtifacts", {})
+
+        # Determine mode
+        if existing_test_code:
+            if test_analysis and test_analysis.get("is_stub"):
+                mode = "enhance stub"
+            else:
+                mode = "improve existing"
+        else:
+            mode = "create new"
+
+        # Build mode-specific task instructions
+        if mode == "create new":
+            mode_specific_task = """
+1. Create comprehensive behavioral tests that validate the existing implementation
+2. Test all artifacts declared in the manifest's expectedArtifacts
+3. Use the actual implementation code as reference for expected behavior
+4. Follow pytest conventions and MAID behavioral test patterns
+"""
+            test_path = self._determine_test_path(manifest_data)
+        elif mode == "enhance stub":
+            mode_specific_task = """
+1. Fill in the stub/placeholder tests with real behavioral assertions
+2. Use the existing implementation to understand expected behavior
+3. Preserve the existing test structure but replace placeholders with real tests
+4. Ensure all artifacts from manifest are tested
+"""
+            test_path = existing_test_path
+        else:  # improve existing
+            mode_specific_task = """
+1. Review and improve the existing tests
+2. Add missing test cases for any untested artifacts from manifest
+3. Enhance assertions to be more comprehensive
+4. Fix any broken tests based on the actual implementation
+"""
+            test_path = existing_test_path
+
+        # Get split prompts (system + user)
+        template_manager = get_template_manager()
+        prompts = template_manager.render_for_agent(
+            "test_generation_from_implementation",
+            manifest_path=manifest_path,
+            implementation_file=implementation_path,
+            test_file_path=test_path,
+            test_mode=mode,
+            test_mode_instructions=mode_specific_task,
+            artifacts_summary=self._format_artifacts(artifacts),
+        )
+
+        # Add file path instruction to user message
+        user_message = (
+            prompts["user_message"]
+            + f"""
+
+CRITICAL: Use your file editing tools to directly create/update this test file:
+- {test_path}
+
+- Write the complete Python test code to the file listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the file
+- Ensure tests are behavioral (call methods, verify behavior)
+"""
+        )
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        return claude_with_system.generate(user_message)
+
     def _build_test_enhancement_prompt(
         self,
         manifest_data: Dict[str, Any],
@@ -262,7 +358,6 @@ class TestGenerator:
         Returns:
             Formatted prompt for Claude Code
         """
-        goal = manifest_data.get("goal", "")
         artifacts = manifest_data.get("expectedArtifacts", {})
 
         # Determine mode
@@ -273,20 +368,6 @@ class TestGenerator:
                 mode = "improve existing"
         else:
             mode = "create new"
-
-        # Build existing test section
-        if existing_test_code:
-            existing_test_section = f"""
-EXISTING TEST FILE: {existing_test_path}
-TEST ANALYSIS: {test_analysis.get('test_count', 0)} tests found, is_stub={test_analysis.get('is_stub', False)}
-
-EXISTING TEST CODE:
-```python
-{existing_test_code}
-```
-"""
-        else:
-            existing_test_section = "(No existing tests)"
 
         # Build mode-specific task instructions
         if mode == "create new":
@@ -319,14 +400,11 @@ EXISTING TEST CODE:
         prompt = template_manager.render(
             "test_generation_from_implementation",
             manifest_path=manifest_path,
-            goal=goal,
-            implementation_path=implementation_path,
-            implementation_code=implementation_code,
+            implementation_file=implementation_path,
+            test_file_path=test_path,
+            test_mode=mode,
+            test_mode_instructions=mode_specific_task,
             artifacts_summary=self._format_artifacts(artifacts),
-            existing_test_section=existing_test_section,
-            mode=mode,
-            mode_specific_task=mode_specific_task,
-            test_path=test_path,
         )
 
         return prompt

@@ -48,11 +48,8 @@ class TestDesigner(BaseAgent):
 
         manifest_data = load_result["data"]
 
-        # Build prompt for Claude Code
-        prompt = self._build_test_prompt(manifest_data, manifest_path)
-
-        # Let Claude Code write test files directly using its tools
-        response = self.claude.generate(prompt)
+        # Generate tests with split prompts
+        response = self._generate_tests_with_claude(manifest_data, manifest_path)
         if not response.success:
             return self._create_error_result(response.error)
 
@@ -128,6 +125,76 @@ class TestDesigner(BaseAgent):
         """
         readonly_files = manifest_data.get("readonlyFiles", [])
         return [file_path for file_path in readonly_files if "test_" in file_path]
+
+    def _generate_tests_with_claude(
+        self, manifest_data: Dict[str, Any], manifest_path: str
+    ):
+        """Generate tests using Claude API with split prompts.
+
+        Args:
+            manifest_data: Parsed manifest data
+            manifest_path: Path to manifest file
+
+        Returns:
+            ClaudeResponse object with generation result
+        """
+        # Get split prompts (system + user)
+        template_manager = get_template_manager()
+        goal = manifest_data.get("goal", "")
+        artifacts_summary = self._summarize_artifacts(
+            manifest_data.get("expectedArtifacts", {})
+        )
+
+        # Extract files to test from manifest
+        editable_files = manifest_data.get("editableFiles", [])
+        creatable_files = manifest_data.get("creatableFiles", [])
+        files_list = editable_files + creatable_files
+
+        # Format files_to_test as a readable string
+        if files_list:
+            files_to_test = ", ".join(files_list)
+        else:
+            files_to_test = "No files specified"
+
+        # Extract test file path (primary test path)
+        test_paths = self._extract_test_paths(manifest_data)
+        test_file_path = test_paths[0] if test_paths else "tests/test_unknown.py"
+
+        prompts = template_manager.render_for_agent(
+            "test_generation",
+            manifest_path=manifest_path,
+            goal=goal,
+            artifacts_summary=artifacts_summary,
+            files_to_test=files_to_test,
+            test_file_path=test_file_path,
+        )
+
+        # Add file path instruction to user message
+        user_message = prompts["user_message"]
+        if test_paths:
+            files_list = "\n".join([f"- {path}" for path in test_paths])
+            user_message += f"""
+
+CRITICAL: Use your file editing tools to directly create/update these test files:
+{files_list}
+
+- Write the complete Python test code to the test file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Ensure tests are behavioral (call methods, verify behavior)
+"""
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        self.logger.debug("Calling Claude to generate tests with split prompts...")
+        return claude_with_system.generate(user_message)
 
     def _build_test_prompt(
         self, manifest_data: Dict[str, Any], manifest_path: str

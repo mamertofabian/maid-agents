@@ -6,7 +6,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from maid_agents.core.test_generator import TestGenerator
+from maid_agents.agents.test_generator import TestGenerator
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 
 

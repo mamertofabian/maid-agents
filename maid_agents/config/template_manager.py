@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from string import Template
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 
 class TemplateManager:
@@ -122,6 +122,69 @@ class TemplateManager:
             Path to template file
         """
         return self.templates_dir / f"{template_name}.txt"
+
+    def render_split(self, template_name: str, **kwargs: Any) -> Tuple[str, str]:
+        """Load and render split templates (system + user) with provided variables.
+
+        Split templates separate behavioral guidance (system) from task details (user).
+        Expects two template files:
+        - system/{template_name}_system.txt - Behavioral guidance (HOW)
+        - user/{template_name}_user.txt - Task-specific details (WHAT)
+
+        Args:
+            template_name: Base name of template (e.g., "manifest_creation")
+            **kwargs: Variables to substitute in both templates
+
+        Returns:
+            Tuple of (system_prompt, user_message)
+
+        Raises:
+            FileNotFoundError: If either template file doesn't exist
+            KeyError: If required template variable is missing
+        """
+        system_template = self.load_template(f"system/{template_name}_system")
+        user_template = self.load_template(f"user/{template_name}_user")
+
+        try:
+            system_prompt = system_template.substitute(**kwargs)
+            user_message = user_template.substitute(**kwargs)
+            return (system_prompt, user_message)
+        except KeyError as e:
+            missing_var = str(e).strip("'")
+            raise KeyError(
+                f"Missing required variable '{missing_var}' for split template '{template_name}'. "
+                f"Provided variables: {list(kwargs.keys())}"
+            ) from e
+
+    def render_for_agent(
+        self, template_name: str, use_split: bool = True, **kwargs: Any
+    ) -> Dict[str, str]:
+        """Convenience method to render templates for agents.
+
+        Returns a dictionary with both system_prompt and user_message keys,
+        suitable for creating ClaudeWrapper instances.
+
+        Args:
+            template_name: Base name of template (e.g., "manifest_creation")
+            use_split: If True, use split templates. If False, use legacy single template
+            **kwargs: Variables to substitute in templates
+
+        Returns:
+            Dictionary with keys:
+            - "system_prompt": System-level behavioral guidance (or None for legacy)
+            - "user_message": Task-specific user message
+
+        Raises:
+            FileNotFoundError: If template files don't exist
+            KeyError: If required template variable is missing
+        """
+        if use_split:
+            system_prompt, user_message = self.render_split(template_name, **kwargs)
+            return {"system_prompt": system_prompt, "user_message": user_message}
+        else:
+            # Backward compatible: use legacy single template
+            user_message = self.render(template_name, **kwargs)
+            return {"system_prompt": None, "user_message": user_message}
 
 
 # Singleton instance for easy access

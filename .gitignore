@@ -20,3 +20,5 @@ backup/
 maid_agents/.claude/tdd-guard/*
 
 .ccmaid.toml
+
+temp/*

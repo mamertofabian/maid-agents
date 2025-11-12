@@ -60,11 +60,8 @@ class Developer(BaseAgent):
                 f"Failed to load manifest: {manifest_path}"
             )
 
-        # Build implementation prompt
-        prompt = self._build_implementation_prompt(manifest_data, test_errors)
-
-        # Let Claude Code write files directly using its tools
-        response = self.claude.generate(prompt)
+        # Generate implementation with split prompts
+        response = self._generate_implementation_with_claude(manifest_data, test_errors)
         if not response.success:
             return self._create_error_response(response.error)
 
@@ -149,6 +146,68 @@ class Developer(BaseAgent):
         creatable = manifest_data.get("creatableFiles", [])
         editable = manifest_data.get("editableFiles", [])
         return creatable + editable
+
+    def _generate_implementation_with_claude(
+        self, manifest_data: Dict[str, Any], test_errors: str
+    ):
+        """Generate implementation using Claude API with split prompts.
+
+        Args:
+            manifest_data: Parsed manifest data
+            test_errors: Test error output from previous attempts
+
+        Returns:
+            ClaudeResponse object with generation result
+        """
+        # Extract manifest components
+        template_manager = get_template_manager()
+        goal = self._get_manifest_goal(manifest_data)
+        artifacts_summary = self._build_artifacts_summary(
+            manifest_data.get("expectedArtifacts", {})
+        )
+        files_to_modify_str = self._format_modifiable_files(manifest_data)
+        test_output = self._format_test_output(test_errors)
+        manifest_filename = self._generate_manifest_filename(goal)
+
+        # Get split prompts (system + user)
+        prompts = template_manager.render_for_agent(
+            "implementation",
+            manifest_path=manifest_filename,
+            goal=goal,
+            test_output=test_output,
+            artifacts_summary=artifacts_summary,
+            files_to_modify=files_to_modify_str,
+        )
+
+        # Add file path instruction to user message
+        files_to_modify = self._get_modifiable_files(manifest_data)
+        user_message = prompts["user_message"]
+        if files_to_modify:
+            files_list = "\n".join([f"- {path}" for path in files_to_modify])
+            user_message += f"""
+
+CRITICAL: Use your file editing tools to directly write/update these files:
+{files_list}
+
+- Write the complete Python implementation code to the file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Ensure the code matches all artifact signatures exactly
+"""
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        self.logger.debug(
+            "Calling Claude to generate implementation with split prompts..."
+        )
+        return claude_with_system.generate(user_message)
 
     def _build_implementation_prompt(
         self, manifest_data: Dict[str, Any], test_errors: str

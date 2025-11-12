@@ -1,8 +1,11 @@
 """Tests for configuration file loader."""
 
+import os
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -12,6 +15,49 @@ from maid_agents.config.config_loader import (
     get_config_example,
     _merge_config,
 )
+
+
+@contextmanager
+def _temporary_toml_file(content: str) -> Iterator[Path]:
+    """Create temporary TOML file with given content.
+
+    Args:
+        content: TOML file content
+
+    Yields:
+        Path to temporary file
+
+    Example:
+        with _temporary_toml_file('[cli]\\nlog_level = "DEBUG"') as path:
+            config = _merge_config(CLIConfig(), path)
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".toml", delete=False
+    ) as temp_file:
+        temp_file.write(content)
+        temp_file.flush()
+        temp_path = Path(temp_file.name)
+
+    try:
+        yield temp_path
+    finally:
+        temp_path.unlink()
+
+
+@contextmanager
+def _temporary_directory() -> Iterator[None]:
+    """Change to temporary directory and restore original on exit.
+
+    Yields:
+        None
+    """
+    original_cwd = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            os.chdir(tmpdir)
+            yield
+        finally:
+            os.chdir(original_cwd)
 
 
 def test_cli_config_defaults():
@@ -29,98 +75,64 @@ def test_cli_config_defaults():
 
 def test_load_config_with_no_files():
     """Test load_config returns defaults when no config files exist."""
-    import os
+    with _temporary_directory():
+        config = load_config()
 
-    # Run in temporary directory to avoid loading project's .ccmaid.toml
-    with tempfile.TemporaryDirectory() as tmpdir:
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(tmpdir)
-            config = load_config()
-
-            assert isinstance(config, CLIConfig)
-            assert config.log_level == "INFO"
-            assert config.mock_mode is False
-        finally:
-            os.chdir(original_cwd)
+        assert isinstance(config, CLIConfig)
+        assert config.log_level == "INFO"
+        assert config.mock_mode is False
 
 
 def test_merge_config_with_cli_section():
     """Test merging CLI section from TOML file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write(
-            """
+    toml_content = """
 [cli]
 log_level = "DEBUG"
 mock_mode = true
 """
-        )
-        f.flush()
-        config_path = Path(f.name)
-
-    try:
+    with _temporary_toml_file(toml_content) as config_path:
         base_config = CLIConfig()
         merged_config = _merge_config(base_config, config_path)
 
         assert merged_config.log_level == "DEBUG"
         assert merged_config.mock_mode is True
-    finally:
-        config_path.unlink()
 
 
 def test_merge_config_with_iterations_section():
     """Test merging iterations section from TOML file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write(
-            """
+    toml_content = """
 [iterations]
 max_planning_iterations = 15
 max_implementation_iterations = 25
 max_refinement_iterations = 8
 """
-        )
-        f.flush()
-        config_path = Path(f.name)
-
-    try:
+    with _temporary_toml_file(toml_content) as config_path:
         base_config = CLIConfig()
         merged_config = _merge_config(base_config, config_path)
 
         assert merged_config.max_planning_iterations == 15
         assert merged_config.max_implementation_iterations == 25
         assert merged_config.max_refinement_iterations == 8
-    finally:
-        config_path.unlink()
 
 
 def test_merge_config_with_directories_section():
     """Test merging directories section from TOML file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write(
-            """
+    toml_content = """
 [directories]
 manifest_dir = "custom/manifests"
 test_dir = "custom/tests"
 """
-        )
-        f.flush()
-        config_path = Path(f.name)
-
-    try:
+    with _temporary_toml_file(toml_content) as config_path:
         base_config = CLIConfig()
         merged_config = _merge_config(base_config, config_path)
 
         assert merged_config.manifest_dir == "custom/manifests"
         assert merged_config.test_dir == "custom/tests"
-    finally:
-        config_path.unlink()
 
 
 def test_merge_config_with_complete_file():
     """Test merging complete config file with all sections."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write(
-            """
+    toml_content = """
 [cli]
 log_level = "WARNING"
 mock_mode = true
@@ -134,47 +146,31 @@ max_refinement_iterations = 10
 manifest_dir = "my_manifests"
 test_dir = "my_tests"
 """
-        )
-        f.flush()
-        config_path = Path(f.name)
-
-    try:
+    with _temporary_toml_file(toml_content) as config_path:
         base_config = CLIConfig()
         merged_config = _merge_config(base_config, config_path)
 
-        # CLI settings
         assert merged_config.log_level == "WARNING"
         assert merged_config.mock_mode is True
 
-        # Iteration limits
         assert merged_config.max_planning_iterations == 12
         assert merged_config.max_implementation_iterations == 30
         assert merged_config.max_refinement_iterations == 10
 
-        # Directories
         assert merged_config.manifest_dir == "my_manifests"
         assert merged_config.test_dir == "my_tests"
-    finally:
-        config_path.unlink()
 
 
 def test_merge_config_with_invalid_file():
     """Test that invalid config file doesn't crash and uses defaults."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write("invalid toml content {{{")
-        f.flush()
-        config_path = Path(f.name)
+    invalid_toml = "invalid toml content {{{"
 
-    try:
+    with _temporary_toml_file(invalid_toml) as config_path:
         base_config = CLIConfig()
-        # Should not raise exception, just return base config
         merged_config = _merge_config(base_config, config_path)
 
-        # Should still have defaults
         assert merged_config.log_level == "INFO"
         assert merged_config.mock_mode is False
-    finally:
-        config_path.unlink()
 
 
 def test_merge_config_with_missing_file():
@@ -206,24 +202,13 @@ def test_get_config_example():
 
 def test_merge_config_partial_sections():
     """Test that partial sections don't override unspecified values."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
-        f.write(
-            """
+    toml_content = """
 [cli]
 log_level = "ERROR"
-# mock_mode not specified, should keep default
 """
-        )
-        f.flush()
-        config_path = Path(f.name)
-
-    try:
+    with _temporary_toml_file(toml_content) as config_path:
         base_config = CLIConfig()
         merged_config = _merge_config(base_config, config_path)
 
-        # Specified value should be updated
         assert merged_config.log_level == "ERROR"
-        # Unspecified value should keep default
         assert merged_config.mock_mode is False
-    finally:
-        config_path.unlink()
