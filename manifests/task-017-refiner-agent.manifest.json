@@ -43,23 +43,5 @@
       }
     ]
   },
-  "additionalArtifacts": [
-    {
-      "file": "maid_agents/maid_agents/core/orchestrator.py",
-      "contains": [
-        {
-          "type": "function",
-          "name": "run_refinement_loop",
-          "class": "MAIDOrchestrator",
-          "args": [
-            {"name": "manifest_path", "type": "str"},
-            {"name": "refinement_goal", "type": "str"},
-            {"name": "max_iterations", "type": "int"}
-          ],
-          "returns": "dict"
-        }
-      ]
-    }
-  ],
   "validationCommand": ["pytest", "maid_agents/tests/test_task_017_refiner_agent.py", "-v"]
 }

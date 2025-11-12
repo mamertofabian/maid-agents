@@ -61,7 +61,7 @@ class Refactorer(BaseAgent):
 
         # Generate refactoring via Claude Code
         refactoring_result = self._generate_refactoring(
-            manifest_data, file_contents, validation_feedback
+            manifest_data, file_contents, validation_feedback, manifest_path
         )
         if not refactoring_result["success"]:
             return refactoring_result
@@ -208,21 +208,66 @@ class Refactorer(BaseAgent):
         manifest_data: Dict[str, Any],
         file_contents: Dict[str, str],
         validation_feedback: str,
+        manifest_path: str = "",
     ) -> Dict[str, Any]:
-        """Generate refactoring through Claude API.
+        """Generate refactoring through Claude API with split prompts.
 
         Args:
             manifest_data: Parsed manifest
             file_contents: Current file contents
             validation_feedback: Previous validation errors
+            manifest_path: Path to the manifest file
 
         Returns:
             Dict with success status, improvements, refactored files, and raw response
         """
-        prompt = self._build_refactor_prompt(
-            manifest_data, file_contents, validation_feedback
+        # Get split prompts (system + user)
+        template_manager = get_template_manager()
+        goal = manifest_data.get("goal", "")
+
+        # Format files to refactor
+        files_section = self._format_files_section(file_contents)
+
+        # Extract test file from manifest
+        readonly_files = manifest_data.get("readonlyFiles", [])
+        test_files = [f for f in readonly_files if "test_" in f]
+        test_file = test_files[0] if test_files else "tests/test_*.py"
+
+        prompts = template_manager.render_for_agent(
+            "refactor",
+            manifest_path=manifest_path,
+            goal=goal,
+            files_to_refactor=files_section,
+            test_file=test_file,
         )
-        response = self.claude.generate(prompt)
+
+        # Add file path instruction to user message
+        files_list = "\n".join([f"- {path}" for path in file_contents.keys()])
+        user_message = (
+            prompts["user_message"]
+            + f"""
+
+CRITICAL: Use your file editing tools to directly update these files:
+{files_list}
+
+- Refactor the code in the file(s) listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+- Maintain all manifest requirements and test compatibility
+"""
+        )
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        self.logger.debug("Calling Claude to refactor code with split prompts...")
+        response = claude_with_system.generate(user_message)
 
         if not response.success:
             return {

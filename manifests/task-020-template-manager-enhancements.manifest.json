@@ -1,0 +1,39 @@
+{
+  "goal": "Enhance TemplateManager with render_split() and render_for_agent() methods to support split prompt architecture",
+  "taskType": "enhance",
+  "creatableFiles": [],
+  "editableFiles": [
+    "maid_agents/config/template_manager.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_020_template_manager_enhancements.py",
+    "maid_agents/config/templates/system/manifest_creation_system.txt",
+    "maid_agents/config/templates/user/manifest_creation_user.txt",
+    "docs/maid_specs.md"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/config/template_manager.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "render_split",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"}
+        ],
+        "returns": "Tuple[str, str]"
+      },
+      {
+        "type": "function",
+        "name": "render_for_agent",
+        "class": "TemplateManager",
+        "args": [
+          {"name": "template_name", "type": "str"},
+          {"name": "use_split", "type": "bool"}
+        ],
+        "returns": "Dict[str, str]"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_020_template_manager_enhancements.py", "-v"]
+}

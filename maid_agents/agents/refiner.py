@@ -86,17 +86,14 @@ class Refiner(BaseAgent):
                 "improvements": [],
             }
 
-        # Build prompt for Claude Code to refine and write files directly
-        prompt = self._build_refine_prompt(
+        # Generate refinements with split prompts
+        response = self._generate_refinement_with_claude(
             manifest_path,
             manifest_data,
             test_contents,
             refinement_goal,
             validation_feedback,
         )
-
-        # Let Claude Code make file changes directly using its tools
-        response = self.claude.generate(prompt)
 
         if not response.success:
             return {
@@ -277,6 +274,79 @@ class Refiner(BaseAgent):
 
         return refined_tests
 
+    def _generate_refinement_with_claude(
+        self,
+        manifest_path: str,
+        manifest_data: Dict[str, Any],
+        test_contents: Dict[str, str],
+        refinement_goal: str,
+        validation_feedback: str,
+    ):
+        """Generate refinement using Claude API with split prompts.
+
+        Args:
+            manifest_path: Path to manifest file to update
+            manifest_data: Current manifest data
+            test_contents: Dict of test file paths to contents
+            refinement_goal: User's refinement objectives
+            validation_feedback: Validation errors from previous iteration
+
+        Returns:
+            ClaudeResponse object with generation result
+        """
+        # Get split prompts (system + user)
+        template_manager = get_template_manager()
+
+        # Get primary test file path (first test file from test_contents)
+        test_file_path = (
+            list(test_contents.keys())[0] if test_contents else "No test file"
+        )
+
+        prompts = template_manager.render_for_agent(
+            "refine",
+            manifest_path=manifest_path,
+            test_file_path=test_file_path,
+            goal=refinement_goal,
+            validation_errors=(
+                validation_feedback
+                if validation_feedback
+                else "No validation errors from previous iteration."
+            ),
+        )
+
+        # Build list of files Claude Code should update
+        files_to_update = [manifest_path] + list(test_contents.keys())
+        files_list = "\n".join([f"- {path}" for path in files_to_update])
+
+        # Add file path instruction to user message
+        user_message = (
+            prompts["user_message"]
+            + f"""
+
+CRITICAL: Use your file editing tools to directly update these files:
+{files_list}
+
+- Update the manifest and test files listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the changes - actually write the files
+- Ensure all MAID v1.2 requirements are met
+"""
+        )
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        self.logger.debug(
+            "Calling Claude to refine manifest and tests with split prompts..."
+        )
+        return claude_with_system.generate(user_message)
+
     def _build_refine_prompt(
         self,
         manifest_path: str,
@@ -297,28 +367,23 @@ class Refiner(BaseAgent):
         Returns:
             Formatted prompt string
         """
-        # Build test files section
-        tests_section = "\n\n".join(
-            [
-                f"File: {path}\n```python\n{content}\n```"
-                for path, content in test_contents.items()
-            ]
-        )
-
-        # Build manifest JSON string
-        manifest_json = json.dumps(manifest_data, indent=2)
-
         # Build list of files Claude Code should update
         files_to_update = [manifest_path] + list(test_contents.keys())
         files_list = "\n".join([f"- {path}" for path in files_to_update])
 
         template_manager = get_template_manager()
+
+        # Get primary test file path (first test file from test_contents)
+        test_file_path = (
+            list(test_contents.keys())[0] if test_contents else "No test file"
+        )
+
         prompt = template_manager.render(
             "refine",
-            refinement_goal=refinement_goal,
-            manifest_json=manifest_json,
-            test_contents=tests_section,
-            validation_feedback=(
+            manifest_path=manifest_path,
+            test_file_path=test_file_path,
+            goal=refinement_goal,
+            validation_errors=(
                 validation_feedback
                 if validation_feedback
                 else "No validation errors from previous iteration."

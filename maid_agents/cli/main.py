@@ -11,7 +11,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.config.config_loader import load_config, get_config_example
 from maid_agents.core.orchestrator import MAIDOrchestrator
-from maid_agents.core.test_generator import TestGenerator
+from maid_agents.agents.test_generator import TestGenerator
 from maid_agents.utils.logging import setup_logging
 
 console = Console()

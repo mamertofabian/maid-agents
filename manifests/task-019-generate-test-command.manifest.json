@@ -2,7 +2,7 @@
   "goal": "Add CLI command 'generate-test' to create or enhance behavioral tests from existing implementation files, supporting workflow where maid snapshot creates manifest and stub tests",
   "taskType": "create",
   "creatableFiles": [
-    "maid_agents/maid_agents/core/test_generator.py"
+    "maid_agents/agents/test_generator.py"
   ],
   "editableFiles": [
     "maid_agents/cli/main.py",
@@ -16,7 +16,7 @@
     "maid_agents/core/orchestrator.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/core/test_generator.py",
+    "file": "maid_agents/agents/test_generator.py",
     "contains": [
       {
         "type": "class",

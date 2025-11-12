@@ -76,7 +76,7 @@ class ManifestArchitect(BaseAgent):
     # ==================== Core Generation Methods ====================
 
     def _generate_manifest_with_claude(self, goal: str, task_number: int):
-        """Generate manifest using Claude API.
+        """Generate manifest using Claude API with split prompts.
 
         Args:
             goal: High-level goal description
@@ -85,12 +85,46 @@ class ManifestArchitect(BaseAgent):
         Returns:
             ClaudeResponse object with generation result
         """
-        prompt = self._build_manifest_prompt(goal, task_number)
-        self.logger.debug("Calling Claude to generate manifest...")
-        return self.claude.generate(prompt)
+        # Get split prompts (system + user)
+        template_manager = get_template_manager()
+        manifest_path = self._build_manifest_path(goal, task_number)
+
+        prompts = template_manager.render_for_agent(
+            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
+        )
+
+        # Add file path instruction to user message
+        user_message = (
+            prompts["user_message"]
+            + f"""
+
+CRITICAL: Use your file editing tools to directly create this manifest file:
+- {manifest_path}
+
+- Write the complete JSON manifest to the file listed above
+- Make all changes directly using your file editing capabilities
+- Do not just show the JSON - actually write the file
+- Ensure the JSON is valid and matches the MAID v1.2 spec
+"""
+        )
+
+        # Create ClaudeWrapper with system prompt
+        claude_with_system = ClaudeWrapper(
+            mock_mode=self.claude.mock_mode,
+            model=self.claude.model,
+            timeout=self.claude.timeout,
+            temperature=self.claude.temperature,
+            system_prompt=prompts["system_prompt"],
+        )
+
+        self.logger.debug("Calling Claude to generate manifest with split prompts...")
+        return claude_with_system.generate(user_message)
 
     def _build_manifest_prompt(self, goal: str, task_number: int) -> str:
         """Build prompt for Claude Code to generate manifest directly.
+
+        DEPRECATED: Use _generate_manifest_with_claude() which uses split prompts.
+        This method is kept for backward compatibility.
 
         Args:
             goal: High-level goal description

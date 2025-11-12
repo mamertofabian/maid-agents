@@ -1,0 +1,81 @@
+{
+  "goal": "Add system prompt support to split behavioral guidance (HOW) from task details (WHAT) for 67% token reduction and more effective agent behavior",
+  "taskType": "enhance",
+  "creatableFiles": [
+    "maid_agents/config/templates/system/manifest_creation_system.txt",
+    "maid_agents/config/templates/system/test_generation_system.txt",
+    "maid_agents/config/templates/system/implementation_system.txt",
+    "maid_agents/config/templates/system/refactor_system.txt",
+    "maid_agents/config/templates/system/refine_system.txt",
+    "maid_agents/config/templates/system/test_generation_from_implementation_system.txt",
+    "maid_agents/config/templates/user/manifest_creation_user.txt",
+    "maid_agents/config/templates/user/test_generation_user.txt",
+    "maid_agents/config/templates/user/implementation_user.txt",
+    "maid_agents/config/templates/user/refactor_user.txt",
+    "maid_agents/config/templates/user/refine_user.txt",
+    "maid_agents/config/templates/user/test_generation_from_implementation_user.txt"
+  ],
+  "editableFiles": [
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/agents/manifest_architect.py",
+    "maid_agents/agents/test_designer.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/agents/refiner.py",
+    "maid_agents/agents/test_generator.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_021_system_prompt_support.py",
+    "tests/test_task_020_template_manager_enhancements.py",
+    "manifests/task-020-template-manager-enhancements.manifest.json",
+    "docs/maid_specs.md",
+    "temp/agent_prompt_improvements/FINAL_SUMMARY.md",
+    "temp/agent_prompt_improvements/SYSTEM_PROMPT_IMPLEMENTATION.md",
+    "temp/agent_prompt_improvements/split_templates/README.md"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/claude/cli_wrapper.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ClaudeResponse"
+      },
+      {
+        "type": "class",
+        "name": "ClaudeWrapper"
+      },
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "ClaudeWrapper",
+        "args": [
+          {"name": "mock_mode", "type": "bool"},
+          {"name": "model", "type": "str"},
+          {"name": "timeout", "type": "int"},
+          {"name": "temperature", "type": "float"},
+          {"name": "system_prompt", "type": "Optional[str]"}
+        ],
+        "returns": "None"
+      },
+      {
+        "type": "function",
+        "name": "generate",
+        "class": "ClaudeWrapper",
+        "args": [
+          {"name": "prompt", "type": "str"}
+        ],
+        "returns": "ClaudeResponse"
+      },
+      {
+        "type": "function",
+        "name": "_build_claude_command",
+        "class": "ClaudeWrapper",
+        "args": [
+          {"name": "prompt", "type": "str"}
+        ],
+        "returns": "List[str]"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_021_system_prompt_support.py", "-v"]
+}
