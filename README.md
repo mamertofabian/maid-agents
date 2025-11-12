@@ -29,17 +29,38 @@ ccmaid --version
 
 ## Usage
 
+### Standard MAID Workflow (TDD)
+
 ```bash
 # Run full MAID workflow
 ccmaid run "Add user authentication to the API"
 
 # Run specific phases
 ccmaid plan "Add user authentication"  # Phase 1-2: Manifest + Tests
-ccmaid implement manifests/task-042.manifest.json  # Phase 3-3.5
-
-# Validate existing manifests
-ccmaid validate manifests/task-042.manifest.json
+ccmaid implement manifests/task-042.manifest.json  # Phase 3: Implementation
+ccmaid refactor manifests/task-042.manifest.json   # Phase 3.5: Refactoring
+ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"  # Phase 2 quality gate
 ```
+
+### Reverse Workflow (Tests from Existing Code)
+
+When working with existing code or after using `maid snapshot`:
+
+```bash
+# Step 1: Generate manifest from existing code
+maid snapshot path/to/existing/code.py
+
+# Step 2: Generate behavioral tests from implementation
+ccmaid generate-test manifests/task-NNN-code.manifest.json -i path/to/existing/code.py
+
+# Step 3: Validate the complete manifest
+maid validate manifests/task-NNN-code.manifest.json
+```
+
+The `generate-test` command supports three modes:
+- **Create new**: Generate tests from scratch when none exist
+- **Enhance stub**: Fill in placeholder tests created by `maid snapshot`
+- **Improve existing**: Enhance and complete existing tests
 
 ## Architecture
 

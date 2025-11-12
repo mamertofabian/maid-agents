@@ -53,5 +53,6 @@ maid-runner = { path = "../maid-runner", editable = true }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = [
-    "ignore:cannot collect test class.*TestDesigner:pytest.PytestCollectionWarning"
+    "ignore:cannot collect test class.*TestDesigner:pytest.PytestCollectionWarning",
+    "ignore:cannot collect test class.*TestGenerator:pytest.PytestCollectionWarning"
 ]

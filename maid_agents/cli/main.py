@@ -11,6 +11,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 from maid_agents.config.config_loader import load_config, get_config_example
 from maid_agents.core.orchestrator import MAIDOrchestrator
+from maid_agents.core.test_generator import TestGenerator
 from maid_agents.utils.logging import setup_logging
 
 console = Console()
@@ -69,6 +70,9 @@ Examples:
 
   # Refine manifest and tests
   ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
+
+  # Generate tests from existing implementation (reverse workflow)
+  ccmaid generate-test manifests/task-042.manifest.json -i path/to/code.py
 
 For more information, visit: https://github.com/mamertofabian/maid-agents
         """,
@@ -178,6 +182,19 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=int,
         default=None,
         help="Maximum refinement iterations (default: from config or 5)",
+    )
+
+    # Generate-test subcommand
+    generate_test_parser = subparsers.add_parser(
+        "generate-test",
+        help="Generate or enhance behavioral tests from existing implementation",
+    )
+    generate_test_parser.add_argument("manifest_path", help="Path to manifest file")
+    generate_test_parser.add_argument(
+        "-i",
+        "--implementation",
+        required=True,
+        help="Path to existing implementation file",
     )
 
     args = parser.parse_args()
@@ -470,6 +487,75 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 f"Refinement failed after {result['iterations']} iteration(s)",
                 details=result.get("error"),
                 suggestion="Try a more specific refinement goal or increase --max-iterations",
+            )
+            sys.exit(1)
+
+    elif args.command == "generate-test":
+        manifest_path = args.manifest_path
+        implementation_path = args.implementation
+
+        # Validate paths exist
+        if not Path(manifest_path).exists():
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion="Ensure the manifest file exists and the path is correct",
+            )
+            sys.exit(1)
+
+        if not Path(implementation_path).exists():
+            _print_error(
+                f"Implementation file not found: {implementation_path}",
+                suggestion="Ensure the implementation file exists and the path is correct",
+            )
+            sys.exit(1)
+
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Generating behavioral tests from implementation[/bold]\n"
+                    f"[dim]Manifest:[/dim] {manifest_path}\n"
+                    f"[dim]Implementation:[/dim] {implementation_path}",
+                    title="🧪 Test Generation",
+                    border_style="cyan",
+                )
+            )
+
+        # Create test generator
+        claude = ClaudeWrapper(
+            mock_mode=mock_mode,
+            model=config.claude_model,
+            timeout=config.claude_timeout,
+            temperature=config.claude_temperature,
+        )
+        generator = TestGenerator(claude=claude)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Generating tests...", total=None)
+            result = generator.generate_test_from_implementation(
+                manifest_path=manifest_path,
+                implementation_path=implementation_path,
+            )
+
+        if result["success"]:
+            mode = result.get("mode", "created")
+            _print_success(
+                f"Test generation complete ({mode})",
+                details={
+                    "Test file": result["test_path"],
+                    "Mode": mode,
+                },
+            )
+            sys.exit(0)
+        else:
+            _print_error(
+                "Test generation failed",
+                details=result.get("error"),
+                suggestion="Check that the manifest and implementation file are valid",
             )
             sys.exit(1)
 

@@ -100,8 +100,32 @@ ccmaid refactor manifests/task-042.manifest.json
 # Phase 2 Quality Gate: Refinement
 ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
 
+# Generate tests from existing implementation (reverse workflow)
+ccmaid generate-test manifests/task-042.manifest.json -i path/to/implementation.py
+
 # Mock mode (for testing without API calls)
 ccmaid --mock plan "Test feature"
+```
+
+**About `generate-test` Command:**
+
+The `generate-test` command supports the reverse workflow where you have existing code and need to generate behavioral tests. This is particularly useful after using `maid snapshot` to create a manifest from existing code.
+
+**Three modes of operation:**
+1. **Create new**: Generate tests from scratch when none exist
+2. **Enhance stub**: Fill in placeholder tests created by `maid snapshot`
+3. **Improve existing**: Enhance and complete existing tests
+
+**Typical workflow:**
+```bash
+# 1. Generate manifest from existing code (maid-runner)
+maid snapshot ../other-repo/utils/formatter.py
+
+# 2. Generate behavioral tests (maid_agents)
+ccmaid generate-test manifests/task-NNN-formatter.manifest.json -i ../other-repo/utils/formatter.py
+
+# 3. Validate complete manifest
+maid validate manifests/task-NNN-formatter.manifest.json
 ```
 
 ### Using maid CLI
@@ -177,11 +201,18 @@ maid test --fail-fast
 **Agent System** (`maid_agents/agents/`)
 - All agents inherit from `BaseAgent` abstract class
 - **ManifestArchitect**: Creates MAID manifests from high-level goals
-- **TestDesigner**: Generates behavioral tests from manifests
+- **TestDesigner**: Generates behavioral tests from manifests (TDD approach)
 - **Developer**: Implements code to pass tests
 - **Refactorer**: Improves code quality (Phase 3.5)
 - **Refiner**: Iteratively improves manifest and test quality
 - Each agent wraps Claude Code CLI via `ClaudeWrapper`
+
+**TestGenerator** (`maid_agents/core/test_generator.py`)
+- Generates or enhances behavioral tests from existing implementations (reverse workflow)
+- Detects existing test files and analyzes if they're stubs or complete
+- Three operational modes: create new, enhance stub, improve existing
+- Builds context-aware prompts with manifest, implementation, and existing tests
+- Complements `maid snapshot` to complete the reverse engineering workflow
 
 **ClaudeWrapper** (`maid_agents/claude/cli_wrapper.py`)
 - Invokes Claude Code headless CLI: `claude --print <prompt> --output-format json`
@@ -316,6 +347,12 @@ If you encounter issues during implementation:
 
 ## CLI Entry Point
 
-`ccmaid` command → `maid_agents/cli/main.py:main()` → MAIDOrchestrator
+`ccmaid` command → `maid_agents/cli/main.py:main()` → MAIDOrchestrator or TestGenerator
 
-All commands route through argparse subcommands (run, plan, implement, refactor, refine).
+All commands route through argparse subcommands:
+- **run**: Full workflow via MAIDOrchestrator
+- **plan**: Phase 1-2 via MAIDOrchestrator
+- **implement**: Phase 3 via MAIDOrchestrator
+- **refactor**: Phase 3.5 via MAIDOrchestrator
+- **refine**: Phase 2 quality gate via MAIDOrchestrator
+- **generate-test**: Reverse workflow via TestGenerator (new in task-019)
