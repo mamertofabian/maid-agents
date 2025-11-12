@@ -16,13 +16,7 @@
     "maid_agents/config/templates/user/test_generation_from_implementation_user.txt"
   ],
   "editableFiles": [
-    "maid_agents/claude/cli_wrapper.py",
-    "maid_agents/agents/manifest_architect.py",
-    "maid_agents/agents/test_designer.py",
-    "maid_agents/agents/developer.py",
-    "maid_agents/agents/refactorer.py",
-    "maid_agents/agents/refiner.py",
-    "maid_agents/agents/test_generator.py"
+    "maid_agents/claude/cli_wrapper.py"
   ],
   "readonlyFiles": [
     "tests/test_task_021_system_prompt_support.py",
@@ -31,7 +25,13 @@
     "docs/maid_specs.md",
     "temp/agent_prompt_improvements/FINAL_SUMMARY.md",
     "temp/agent_prompt_improvements/SYSTEM_PROMPT_IMPLEMENTATION.md",
-    "temp/agent_prompt_improvements/split_templates/README.md"
+    "temp/agent_prompt_improvements/split_templates/README.md",
+    "maid_agents/agents/manifest_architect.py",
+    "maid_agents/agents/test_designer.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/agents/refiner.py",
+    "maid_agents/agents/test_generator.py"
   ],
   "expectedArtifacts": {
     "file": "maid_agents/claude/cli_wrapper.py",

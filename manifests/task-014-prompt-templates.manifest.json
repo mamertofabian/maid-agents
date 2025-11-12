@@ -10,14 +10,15 @@
     "maid_agents/config/templates/refine.txt",
     "tests/test_template_manager.py"
   ],
-  "editableFiles": [
+  "editableFiles": [],
+  "readonlyFiles": [
+    "tests/test_task_014_prompt_templates.py",
     "maid_agents/agents/manifest_architect.py",
     "maid_agents/agents/test_designer.py",
     "maid_agents/agents/developer.py",
     "maid_agents/agents/refactorer.py",
     "maid_agents/agents/refiner.py"
   ],
-  "readonlyFiles": ["tests/test_task_014_prompt_templates.py"],
   "expectedArtifacts": {
     "file": "maid_agents/config/template_manager.py",
     "contains": [

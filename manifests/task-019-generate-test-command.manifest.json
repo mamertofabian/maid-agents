@@ -4,16 +4,15 @@
   "creatableFiles": [
     "maid_agents/agents/test_generator.py"
   ],
-  "editableFiles": [
-    "maid_agents/cli/main.py",
-    "maid_agents/agents/test_designer.py"
-  ],
+  "editableFiles": [],
   "readonlyFiles": [
     "tests/test_task_019_generate_test_command.py",
     "maid_agents/config/template_manager.py",
     "maid_agents/config/templates/test_generation_from_implementation.txt",
     "maid_agents/claude/cli_wrapper.py",
-    "maid_agents/core/orchestrator.py"
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/cli/main.py",
+    "maid_agents/agents/test_designer.py"
   ],
   "expectedArtifacts": {
     "file": "maid_agents/agents/test_generator.py",
