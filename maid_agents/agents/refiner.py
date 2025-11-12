@@ -87,12 +87,12 @@ class Refiner(BaseAgent):
                 "improvements": [],
             }
 
-        # Build prompt for Claude
+        # Build prompt for Claude Code to refine and write files directly
         prompt = self._build_refine_prompt(
-            manifest_data, test_contents, refinement_goal, validation_feedback
+            manifest_path, manifest_data, test_contents, refinement_goal, validation_feedback
         )
 
-        # Generate refined manifest and tests using Claude
+        # Let Claude Code make file changes directly using its tools
         response = self.claude.generate(prompt)
 
         if not response.success:
@@ -104,27 +104,29 @@ class Refiner(BaseAgent):
                 "improvements": [],
             }
 
-        # Parse response to extract refined manifest and tests
-        try:
-            improvements = self._extract_improvements(response.result)
-            refined_manifest = self._parse_refined_manifest(response.result)
-            refined_tests = self._parse_refined_tests(response.result)
+        # Extract improvements from Claude's response
+        improvements = self._extract_improvements(response.result)
 
-            return {
-                "success": True,
-                "manifest_data": refined_manifest,
-                "test_code": refined_tests,
-                "improvements": improvements,
-                "error": None,
-            }
+        # Read the refined files back from disk (Claude Code wrote them directly)
+        try:
+            refined_manifest = self._read_refined_manifest(manifest_path)
+            refined_tests = self._read_refined_tests(list(test_contents.keys()))
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Failed to parse Claude's response: {e}",
+                "error": f"Failed to read refined files from disk: {e}",
                 "manifest_data": {},
                 "test_code": {},
-                "improvements": [],
+                "improvements": improvements,
             }
+
+        return {
+            "success": True,
+            "manifest_data": refined_manifest,
+            "test_code": refined_tests,
+            "improvements": improvements,
+            "error": None,
+        }
 
     def _validate_file_categorization(self, manifest_data: Dict[str, Any]) -> str:
         """Validate that editableFiles exist and creatableFiles don't exist.
@@ -225,85 +227,63 @@ class Refiner(BaseAgent):
 
         return improvements
 
-    def _parse_refined_manifest(self, response: str) -> dict:
-        """Parse refined manifest JSON from Claude's response.
+    def _read_refined_manifest(self, manifest_path: str) -> dict:
+        """Read refined manifest from disk after Claude Code writes it.
 
         Args:
-            response: Claude's refinement response
+            manifest_path: Path to manifest file
 
         Returns:
             Parsed manifest dict
 
         Raises:
-            ValueError: If manifest JSON cannot be extracted
+            FileNotFoundError: If manifest file doesn't exist
+            json.JSONDecodeError: If manifest is invalid JSON
         """
-        # Look for JSON code block after "## Updated Manifest:" or "## Refined Manifest:"
-        # Template uses "Updated" but support both variants for robustness
-        pattern = r"## (?:Updated|Refined) Manifest:?\s*```json\s*(.*?)\s*```"
-        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        try:
+            with open(manifest_path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Manifest file not found after refinement: {manifest_path}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in refined manifest: {e}")
 
-        if not match:
-            raise ValueError("Could not find refined manifest JSON in response")
-
-        json_str = match.group(1)
-        return json.loads(json_str)
-
-    def _parse_refined_tests(self, response: str) -> Dict[str, str]:
-        """Parse refined test code from Claude's response.
+    def _read_refined_tests(self, test_file_paths: list) -> Dict[str, str]:
+        """Read refined test files from disk after Claude Code writes them.
 
         Args:
-            response: Claude's refinement response
+            test_file_paths: List of test file paths
 
         Returns:
-            Dict mapping test file paths to refined code
-
-        Raises:
-            ValueError: If test code cannot be extracted
+            Dict mapping test file paths to their contents
         """
-        # Look for Python code blocks after "## Updated Test File:" or "## Refined Tests"
-        # Template format: ## Updated Test File: path/to/test_file.py
-        # Also support: ## Refined Tests (path/to/test.py):
-        # Pattern matches both formats and handles multiple test files
-        test_files = {}
+        refined_tests = {}
+        for file_path in test_file_paths:
+            # Only read test files (not other readonly files)
+            if "test" not in Path(file_path).name.lower():
+                continue
 
-        # Try format: ## Updated Test File: path/to/test.py
-        pattern1 = (
-            r"## (?:Updated|Refined) Test File:\s*([^\n]+)\s*```python\s*(.*?)\s*```"
-        )
-        matches1 = re.finditer(pattern1, response, re.DOTALL | re.IGNORECASE)
+            try:
+                with open(file_path) as f:
+                    refined_tests[file_path] = f.read()
+            except FileNotFoundError:
+                # Test file might not exist if Claude Code didn't create it
+                continue
 
-        for match in matches1:
-            test_path = match.group(1).strip()
-            test_code = match.group(2).strip()
-            test_files[test_path] = test_code
-
-        # Fallback: Try format with parentheses: ## Refined Tests (path/to/test.py):
-        if not test_files:
-            pattern2 = (
-                r"## (?:Updated|Refined) Tests.*?\((.*?)\):?\s*```python\s*(.*?)\s*```"
-            )
-            matches2 = re.finditer(pattern2, response, re.DOTALL | re.IGNORECASE)
-
-            for match in matches2:
-                test_path = match.group(1).strip()
-                test_code = match.group(2).strip()
-                test_files[test_path] = test_code
-
-        if not test_files:
-            raise ValueError("Could not find refined test code in response")
-
-        return test_files
+        return refined_tests
 
     def _build_refine_prompt(
         self,
+        manifest_path: str,
         manifest_data: Dict[str, Any],
         test_contents: Dict[str, str],
         refinement_goal: str,
         validation_feedback: str,
     ) -> str:
-        """Build prompt for Claude to refine manifest and tests.
+        """Build prompt for Claude Code to refine manifest and tests directly.
 
         Args:
+            manifest_path: Path to manifest file to update
             manifest_data: Current manifest data
             test_contents: Dict of test file paths to contents
             refinement_goal: User's refinement objectives
@@ -323,8 +303,12 @@ class Refiner(BaseAgent):
         # Build manifest JSON string
         manifest_json = json.dumps(manifest_data, indent=2)
 
+        # Build list of files Claude Code should update
+        files_to_update = [manifest_path] + list(test_contents.keys())
+        files_list = "\n".join([f"- {path}" for path in files_to_update])
+
         template_manager = get_template_manager()
-        return template_manager.render(
+        prompt = template_manager.render(
             "refine",
             refinement_goal=refinement_goal,
             manifest_json=manifest_json,
@@ -335,3 +319,18 @@ class Refiner(BaseAgent):
                 else "No validation errors from previous iteration."
             ),
         )
+
+        # Add instruction for Claude Code to write files directly
+        prompt += f"""
+
+CRITICAL: Use your file editing tools to directly update these files:
+{files_list}
+
+- Update the manifest file ({manifest_path}) with the refined JSON
+- Update each test file with the refined Python code
+- Make all changes directly using your file editing capabilities
+- Do not just show the code - actually write the files
+
+After making changes, provide a summary of improvements made.
+"""
+        return prompt
