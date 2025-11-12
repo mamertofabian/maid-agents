@@ -6,7 +6,7 @@ import selectors
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Tuple
 
 from maid_agents.utils.logging import LogContext
 
@@ -27,7 +27,7 @@ class ClaudeWrapper:
     """Wraps Claude Code headless CLI invocations."""
 
     # Constants
-    DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+    DEFAULT_MODEL = "opus"
     DEFAULT_TIMEOUT = 300
     DEFAULT_TEMPERATURE = 0.0
     MAX_PREVIEW_LENGTH = 300
@@ -54,7 +54,7 @@ class ClaudeWrapper:
 
         Args:
             mock_mode: If True, returns mock responses without calling Claude
-            model: Claude model to use (e.g., "claude-sonnet-4-5-20250929")
+            model: Claude model to use (e.g., "opus")
             timeout: Request timeout in seconds (default: 300)
             temperature: Sampling temperature 0.0-1.0 (default: 0.0 for deterministic)
         """
@@ -90,7 +90,8 @@ class ClaudeWrapper:
         self.logger.info(
             f"🤖 Calling Claude ({self.model}, timeout={self.timeout}s, temp={self.temperature})"
         )
-        self.logger.debug(f"Full prompt:\n{prompt}")
+        prompt_preview = self._create_preview(prompt)
+        self.logger.debug(f"Prompt preview: {prompt_preview}")
 
     def _generate_mock_response(self, prompt: str, start_time: float) -> ClaudeResponse:
         """Generate a mock response for testing.
@@ -128,7 +129,7 @@ class ClaudeWrapper:
             Real ClaudeResponse from Claude
         """
         command = self._build_claude_command(prompt)
-        self.logger.debug(f"Running command: {' '.join(command[:3])}...")
+        self._log_command_preview(command)
 
         try:
             result = self._execute_claude_command(command)
@@ -167,6 +168,21 @@ class ClaudeWrapper:
             ",".join(self.ALLOWED_TOOLS),
         ]
 
+    def _log_command_preview(self, command: List[str]) -> None:
+        """Log a preview of the command being executed.
+
+        Args:
+            command: The command arguments list
+        """
+        command_preview_parts = [
+            self._create_preview(part) if len(part) > 100 else part
+            for part in command[:5]
+        ]
+        command_preview = " ".join(command_preview_parts)
+        if len(command) > 5:
+            command_preview += "..."
+        self.logger.debug(f"Command preview: {command_preview}")
+
     def _execute_claude_command(
         self, command: List[str]
     ) -> subprocess.CompletedProcess:
@@ -191,71 +207,144 @@ class ClaudeWrapper:
                 bufsize=1,
             )
 
-            stdout_lines = []
-            stderr_lines = []
-            start_time = time.time()
+            stdout_lines, stderr_lines = self._capture_process_output(process, command)
 
-            selector = None
+            return subprocess.CompletedProcess(
+                command,
+                process.returncode,
+                "\n".join(stdout_lines),
+                "\n".join(stderr_lines) if stderr_lines else "",
+            )
+
+    def _capture_process_output(
+        self, process: subprocess.Popen, command: List[str]
+    ) -> Tuple[List[str], List[str]]:
+        """Capture stdout and stderr from running process with timeout.
+
+        Args:
+            process: The running subprocess
+            command: Original command for timeout error
+
+        Returns:
+            Tuple of (stdout_lines, stderr_lines)
+
+        Raises:
+            subprocess.TimeoutExpired: If process exceeds timeout
+        """
+        stdout_lines = []
+        stderr_lines = []
+        start_time = time.time()
+        selector = None
+
+        try:
+            selector = selectors.DefaultSelector()
+            if process.stdout:
+                selector.register(process.stdout, selectors.EVENT_READ)
+
+            self._stream_output_with_timeout(
+                process, selector, stdout_lines, start_time, command
+            )
+            self._collect_remaining_output(process, stdout_lines, stderr_lines)
+
+            return stdout_lines, stderr_lines
+
+        except subprocess.TimeoutExpired:
+            self._cleanup_timed_out_process(process, selector)
+            raise
+        finally:
+            self._close_selector(selector)
+
+    def _stream_output_with_timeout(
+        self,
+        process: subprocess.Popen,
+        selector: selectors.DefaultSelector,
+        stdout_lines: List[str],
+        start_time: float,
+        command: List[str],
+    ) -> None:
+        """Stream output from process while checking timeout.
+
+        Args:
+            process: The running subprocess
+            selector: Selector for non-blocking reads
+            stdout_lines: List to append stdout lines to
+            start_time: Time when process started
+            command: Original command for timeout error
+
+        Raises:
+            subprocess.TimeoutExpired: If timeout exceeded
+        """
+        while process.poll() is None:
+            elapsed = time.time() - start_time
+            if elapsed > self.timeout:
+                raise subprocess.TimeoutExpired(command, self.timeout)
+
+            events = selector.select(timeout=0.1)
+            for key, _ in events:
+                if key.fileobj == process.stdout:
+                    line = process.stdout.readline()
+                    if line:
+                        line = line.rstrip()
+                        stdout_lines.append(line)
+                        self._log_streaming_message(line)
+
+    def _collect_remaining_output(
+        self,
+        process: subprocess.Popen,
+        stdout_lines: List[str],
+        stderr_lines: List[str],
+    ) -> None:
+        """Collect any remaining output after process completes.
+
+        Args:
+            process: The completed subprocess
+            stdout_lines: List to append stdout lines to
+            stderr_lines: List to append stderr lines to
+        """
+        while process.stdout:
+            line = process.stdout.readline()
+            if not line:
+                break
+            line = line.rstrip()
+            stdout_lines.append(line)
+            self._log_streaming_message(line)
+
+        if process.stderr:
+            remaining_stderr = process.stderr.read()
+            if remaining_stderr:
+                stderr_lines.extend(remaining_stderr.splitlines())
+
+        process.wait()
+
+    def _cleanup_timed_out_process(
+        self, process: subprocess.Popen, selector: Optional[selectors.DefaultSelector]
+    ) -> None:
+        """Clean up a process that timed out.
+
+        Args:
+            process: The timed out subprocess
+            selector: The selector to unregister from
+        """
+        if selector and process.stdout:
             try:
-                selector = selectors.DefaultSelector()
-                if process.stdout:
-                    selector.register(process.stdout, selectors.EVENT_READ)
+                selector.unregister(process.stdout)
+            except KeyError:
+                pass
+            selector.close()
+        process.kill()
+        process.wait()
 
-                while process.poll() is None:
-                    elapsed = time.time() - start_time
-                    if elapsed > self.timeout:
-                        raise subprocess.TimeoutExpired(command, self.timeout)
+    def _close_selector(self, selector: Optional[selectors.DefaultSelector]) -> None:
+        """Safely close a selector.
 
-                    events = selector.select(timeout=0.1)
-                    for key, _ in events:
-                        if key.fileobj == process.stdout:
-                            line = process.stdout.readline()
-                            if line:
-                                line = line.rstrip()
-                                stdout_lines.append(line)
-                                self._log_streaming_message(line)
-
-                while True:
-                    if process.stdout:
-                        line = process.stdout.readline()
-                        if line:
-                            line = line.rstrip()
-                            stdout_lines.append(line)
-                            self._log_streaming_message(line)
-                        else:
-                            break
-                    else:
-                        break
-
-                if process.stderr:
-                    remaining_stderr = process.stderr.read()
-                    if remaining_stderr:
-                        stderr_lines = remaining_stderr.splitlines()
-
-                process.wait()
-
-                return subprocess.CompletedProcess(
-                    command,
-                    process.returncode,
-                    "\n".join(stdout_lines),
-                    "\n".join(stderr_lines) if stderr_lines else "",
-                )
-            except subprocess.TimeoutExpired:
-                if selector and process.stdout:
-                    try:
-                        selector.unregister(process.stdout)
-                    except KeyError:
-                        pass
-                    selector.close()
-                process.kill()
-                process.wait()
-                raise
-            finally:
-                if selector:
-                    try:
-                        selector.close()
-                    except Exception:
-                        pass
+        Args:
+            selector: The selector to close
+        """
+        if selector:
+            try:
+                selector.close()
+            except Exception:
+                pass
 
     def _process_command_result(
         self, result: subprocess.CompletedProcess, start_time: float
@@ -355,170 +444,287 @@ class ClaudeWrapper:
             data = json.loads(line)
             msg_type = data.get("type", "")
 
-            self.logger.debug(f"🔍 Message type: {msg_type}")
-            if msg_type not in ["init", "user", "assistant", "result", "system"]:
-                self.logger.debug(
-                    f"🔍 Unknown message type structure: {json.dumps(data, indent=2)}"
-                )
-
-            if msg_type == "init":
-                self.logger.debug("📡 Claude session initialized")
-            elif msg_type == "system":
-                subtype = data.get("subtype", "")
-                if subtype == "init":
-                    model = data.get("model", "unknown")
-                    cwd = data.get("cwd", "")
-                    tools_count = len(data.get("tools", []))
-                    mcp_servers = data.get("mcp_servers", [])
-                    mcp_count = len([s for s in mcp_servers if s.get("status") == "connected"])
-                    self.logger.debug(
-                        f"🔧 System init: model={model}, cwd={cwd}, "
-                        f"tools={tools_count}, mcp_servers={mcp_count}"
-                    )
+            if msg_type == "system":
+                self._log_system_message(data)
+            elif msg_type == "init":
+                self._log_init_message()
             elif msg_type == "user":
-                message = data.get("message", {})
-                content = message.get("content", [])
-
-                if content:
-                    tool_calls = []
-                    tool_results = []
-                    text_parts = []
-
-                    for item in content:
-                        if item.get("type") == "tool_use":
-                            tool_name = item.get("name", "unknown")
-                            tool_input = item.get("input", {})
-
-                            if isinstance(tool_input, dict):
-                                if len(tool_input) == 1:
-                                    key, value = next(iter(tool_input.items()))
-                                    if isinstance(value, str) and len(value) < 100:
-                                        tool_calls.append(f"{tool_name}({value})")
-                                    else:
-                                        tool_calls.append(
-                                            f"{tool_name}({key}={self._format_tool_input(value)})"
-                                        )
-                                else:
-                                    formatted_input = ", ".join(
-                                        f"{k}={self._format_tool_input(v)}"
-                                        for k, v in tool_input.items()
-                                    )
-                                    tool_calls.append(f"{tool_name}({formatted_input})")
-                            else:
-                                tool_calls.append(
-                                    f"{tool_name}({self._format_tool_input(tool_input)})"
-                                )
-                        elif item.get("type") == "tool_result":
-                            result_content = item.get("content", "")
-                            is_error = item.get("is_error", False)
-
-                            if result_content:
-                                result_str = str(result_content)
-                                first_line = result_str.split("\n")[0].strip()
-                                if len(first_line) > 100:
-                                    first_line = first_line[:97] + "..."
-
-                                status = "❌" if is_error else "✅"
-                                tool_results.append(
-                                    f"{status} Tool result: {first_line}"
-                                )
-                        elif item.get("type") == "text":
-                            text_parts.append(item.get("text", ""))
-
-                    if tool_calls:
-                        for tool_call in tool_calls:
-                            self.logger.debug(f"🔧 {tool_call}")
-                    if tool_results:
-                        for tool_result in tool_results:
-                            self.logger.debug(tool_result)
-                    if text_parts:
-                        text_content = " ".join(text_parts)
-                        preview = self._create_preview(text_content)
-                        self.logger.debug(f"👤 User: {preview}")
-                    if not tool_calls and not tool_results and not text_parts:
-                        self.logger.debug(
-                            "👤 User message received (no recognized content)"
-                        )
-                else:
-                    self.logger.debug("👤 Tool call received (no user message content)")
+                self._log_user_message(data)
             elif msg_type == "assistant":
-                message = data.get("message", {})
-                content = message.get("content", [])
-                usage = message.get("usage", {})
-
-                if usage:
-                    input_tokens = usage.get("input_tokens", 0)
-                    output_tokens = usage.get("output_tokens", 0)
-                    cache_read = usage.get("cache_read_input_tokens", 0)
-                    cache_creation = usage.get("cache_creation_input_tokens", 0)
-                    
-                    token_info = f"📊 Tokens: in={input_tokens}"
-                    if cache_read > 0:
-                        token_info += f" (cache: {cache_read})"
-                    if cache_creation > 0:
-                        token_info += f" (new cache: {cache_creation})"
-                    token_info += f", out={output_tokens}"
-                    self.logger.debug(token_info)
-
-                if content:
-                    tool_calls = []
-                    text_content = ""
-
-                    for item in content:
-                        if item.get("type") == "tool_use":
-                            tool_name = item.get("name", "unknown")
-                            tool_input = item.get("input", {})
-
-                            if isinstance(tool_input, dict):
-                                if len(tool_input) == 1:
-                                    key, value = next(iter(tool_input.items()))
-                                    if key == "file_path" and isinstance(value, str):
-                                        tool_calls.append(f"{tool_name}({value})")
-                                    elif key == "command" and isinstance(value, str):
-                                        tool_calls.append(f"{tool_name}({value})")
-                                    elif isinstance(value, str) and len(value) < 100:
-                                        tool_calls.append(f"{tool_name}({value})")
-                                    else:
-                                        tool_calls.append(
-                                            f"{tool_name}({key}={self._format_tool_input(value)})"
-                                        )
-                                else:
-                                    if "command" in tool_input:
-                                        command = tool_input.get("command", "")
-                                        tool_calls.append(f"{tool_name}({command})")
-                                    elif "file_path" in tool_input:
-                                        file_path = tool_input.get("file_path", "")
-                                        tool_calls.append(f"{tool_name}({file_path})")
-                                    else:
-                                        formatted_input = ", ".join(
-                                            f"{k}={self._format_tool_input(v)}"
-                                            for k, v in tool_input.items()
-                                        )
-                                        tool_calls.append(f"{tool_name}({formatted_input})")
-                            else:
-                                tool_calls.append(
-                                    f"{tool_name}({self._format_tool_input(tool_input)})"
-                                )
-                        elif item.get("type") == "text":
-                            text_content += item.get("text", "")
-
-                    if tool_calls:
-                        for tool_call in tool_calls:
-                            self.logger.debug(f"🔧 {tool_call}")
-                    if text_content:
-                        preview = self._create_preview(text_content)
-                        self.logger.info(f"💬 Claude: {preview}")
+                self._log_assistant_message(data)
             elif msg_type == "result":
-                stats = {
-                    "cost": data.get("total_cost_usd"),
-                    "duration": data.get("duration_ms"),
-                    "turns": data.get("num_turns"),
-                }
-                self.logger.debug(f"📊 Final stats: {stats}")
+                self._log_result_message(data)
+            else:
+                self._log_unknown_message(data, msg_type)
+
         except json.JSONDecodeError:
             pass
 
-    def _format_tool_input(self, value) -> str:
+    def _log_system_message(self, data: Dict[str, Any]) -> None:
+        """Log system initialization message.
+
+        Args:
+            data: The parsed JSON message data
+        """
+        subtype = data.get("subtype", "")
+        if subtype == "init":
+            model = data.get("model", "unknown")
+            tools = data.get("tools", [])
+            mcp_servers = data.get("mcp_servers", [])
+            connected_mcp = [s for s in mcp_servers if s.get("status") == "connected"]
+            cwd = data.get("cwd", "")
+
+            self.logger.info(
+                f"🚀 Claude session: model={model}, tools={len(tools)}, "
+                f"mcp={len(connected_mcp)}, cwd={cwd}"
+            )
+
+    def _log_init_message(self) -> None:
+        """Log initialization message."""
+        self.logger.debug("📡 Claude session initialized")
+
+    def _log_user_message(self, data: Dict[str, Any]) -> None:
+        """Log user message with tool calls and results.
+
+        Args:
+            data: The parsed JSON message data
+        """
+        message = data.get("message", {})
+        content = message.get("content", [])
+
+        if not content:
+            self.logger.debug("👤 Tool call received (no user message content)")
+            return
+
+        tool_calls, tool_results, text_parts = self._parse_message_content(content)
+
+        self._log_tool_calls(tool_calls)
+        self._log_tool_results(tool_results)
+        self._log_text_content(text_parts, "👤 User")
+
+        if not tool_calls and not tool_results and not text_parts:
+            self.logger.debug("👤 User message received (no recognized content)")
+
+    def _log_assistant_message(self, data: Dict[str, Any]) -> None:
+        """Log assistant message with tool calls, text, and token usage.
+
+        Args:
+            data: The parsed JSON message data
+        """
+        message = data.get("message", {})
+        content = message.get("content", [])
+        usage = message.get("usage", {})
+
+        if not content:
+            return
+
+        tool_calls, _, text_parts = self._parse_message_content(content)
+
+        self._log_tool_calls(tool_calls)
+        self._log_text_content(text_parts, "💬 Claude")
+        self._log_token_usage(usage)
+
+    def _log_result_message(self, data: Dict[str, Any]) -> None:
+        """Log final result statistics.
+
+        Args:
+            data: The parsed JSON message data
+        """
+        stats = {
+            "cost": data.get("total_cost_usd"),
+            "duration": data.get("duration_ms"),
+            "turns": data.get("num_turns"),
+        }
+        self.logger.debug(f"📊 Final stats: {stats}")
+
+    def _log_token_usage(self, usage: Dict[str, Any]) -> None:
+        """Log token usage information.
+
+        Args:
+            usage: Usage dictionary from message
+        """
+        if not usage:
+            return
+
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+        cache_read = usage.get("cache_read_input_tokens", 0)
+        cache_creation = usage.get("cache_creation_input_tokens", 0)
+
+        if input_tokens == 0 and output_tokens == 0:
+            return
+
+        token_info = f"📊 Tokens: in={input_tokens}"
+        if cache_read > 0:
+            token_info += f" (cache: {cache_read})"
+        if cache_creation > 0:
+            token_info += f" (new: {cache_creation})"
+        token_info += f", out={output_tokens}"
+
+        self.logger.debug(token_info)
+
+    def _log_unknown_message(self, data: Dict[str, Any], msg_type: str) -> None:
+        """Log unknown message type with preview.
+
+        Args:
+            data: The parsed JSON message data
+            msg_type: The message type string
+        """
+        json_str = json.dumps(data, separators=(",", ":"))
+        preview = self._create_preview(json_str)
+        self.logger.debug(f"🔍 Unknown message type '{msg_type}': {preview}")
+
+    def _parse_message_content(
+        self, content: List[Dict[str, Any]]
+    ) -> Tuple[List[str], List[str], List[str]]:
+        """Parse message content into tool calls, tool results, and text.
+
+        Args:
+            content: List of content items from message
+
+        Returns:
+            Tuple of (tool_calls, tool_results, text_parts)
+        """
+        tool_calls = []
+        tool_results = []
+        text_parts = []
+
+        for item in content:
+            item_type = item.get("type")
+
+            if item_type == "tool_use":
+                tool_call = self._format_tool_use(item)
+                tool_calls.append(tool_call)
+            elif item_type == "tool_result":
+                tool_result = self._format_tool_result(item)
+                if tool_result:
+                    tool_results.append(tool_result)
+            elif item_type == "text":
+                text_parts.append(item.get("text", ""))
+
+        return tool_calls, tool_results, text_parts
+
+    def _format_tool_use(self, item: Dict[str, Any]) -> str:
+        """Format a tool_use item for logging.
+
+        Args:
+            item: The tool_use content item
+
+        Returns:
+            Formatted tool call string
+        """
+        tool_name = item.get("name", "unknown")
+        tool_input = item.get("input", {})
+
+        if not isinstance(tool_input, dict):
+            return f"{tool_name}({self._format_tool_input(tool_input)})"
+
+        # Special handling for common tools
+        if tool_name == "Bash" and "command" in tool_input:
+            cmd = tool_input["command"]
+            if len(cmd) <= 80:
+                return f"{tool_name}({cmd})"
+            return f"{tool_name}({cmd[:77]}...)"
+
+        if tool_name == "Read" and "file_path" in tool_input:
+            return f"{tool_name}({tool_input['file_path']})"
+
+        if tool_name == "Write" and "file_path" in tool_input:
+            return f"{tool_name}({tool_input['file_path']})"
+
+        if tool_name == "Edit" and "file_path" in tool_input:
+            return f"{tool_name}({tool_input['file_path']})"
+
+        if tool_name == "MultiEdit" and "file_paths" in tool_input:
+            paths = tool_input.get("file_paths", [])
+            if isinstance(paths, list) and len(paths) <= 3:
+                return f"{tool_name}({', '.join(paths)})"
+            return f"{tool_name}({len(paths)} files)"
+
+        if len(tool_input) == 1:
+            key, value = next(iter(tool_input.items()))
+            if isinstance(value, str) and len(value) < 100:
+                return f"{tool_name}({value})"
+            return f"{tool_name}({key}={self._format_tool_input(value)})"
+
+        formatted_input = ", ".join(
+            f"{k}={self._format_tool_input(v)}" for k, v in list(tool_input.items())[:2]
+        )
+        if len(tool_input) > 2:
+            formatted_input += f", ... ({len(tool_input) - 2} more)"
+        return f"{tool_name}({formatted_input})"
+
+    def _format_tool_result(self, item: Dict[str, Any]) -> Optional[str]:
+        """Format a tool_result item for logging.
+
+        Args:
+            item: The tool_result content item
+
+        Returns:
+            Formatted tool result string, or None if no content
+        """
+        result_content = item.get("content", "")
+        if not result_content:
+            return None
+
+        is_error = item.get("is_error", False)
+        result_str = str(result_content)
+
+        # Extract first meaningful line (skip empty lines)
+        lines = result_str.split("\n")
+        first_line = ""
+        for line in lines[:3]:
+            stripped = line.strip()
+            if stripped:
+                first_line = stripped
+                break
+
+        if not first_line:
+            first_line = result_str[:50].strip() if result_str else ""
+
+        if len(first_line) > 80:
+            first_line = first_line[:77] + "..."
+
+        status = "❌" if is_error else "✅"
+        return f"{status} {first_line}"
+
+    def _log_tool_calls(self, tool_calls: List[str]) -> None:
+        """Log tool calls.
+
+        Args:
+            tool_calls: List of formatted tool call strings
+        """
+        for tool_call in tool_calls:
+            self.logger.info(f"🔧 {tool_call}")
+
+    def _log_tool_results(self, tool_results: List[str]) -> None:
+        """Log tool results.
+
+        Args:
+            tool_results: List of formatted tool result strings
+        """
+        for tool_result in tool_results:
+            self.logger.info(tool_result)
+
+    def _log_text_content(self, text_parts: List[str], prefix: str) -> None:
+        """Log text content with preview.
+
+        Args:
+            text_parts: List of text strings
+            prefix: Prefix for log message (e.g., "👤 User" or "💬 Claude")
+        """
+        if not text_parts:
+            return
+
+        text_content = " ".join(text_parts)
+        preview = self._create_preview(text_content)
+
+        if prefix.startswith("💬"):
+            self.logger.info(f"{prefix}: {preview}")
+        else:
+            self.logger.debug(f"{prefix}: {preview}")
+
+    def _format_tool_input(self, value: Any) -> str:
         """Format tool input value for display.
 
         Args:
@@ -528,16 +734,13 @@ class ClaudeWrapper:
             Formatted string representation
         """
         if isinstance(value, str):
-            if len(value) <= 80:
-                return value
-            return value[:77] + "..."
-        elif isinstance(value, (dict, list)):
+            return value if len(value) <= 80 else value[:77] + "..."
+
+        if isinstance(value, (dict, list)):
             json_str = json.dumps(value, separators=(",", ":"))
-            if len(json_str) <= 80:
-                return json_str
-            return json_str[:77] + "..."
-        else:
-            return str(value)
+            return json_str if len(json_str) <= 80 else json_str[:77] + "..."
+
+        return str(value)
 
     def _parse_plain_text_response(
         self, output: str, elapsed_time: float
@@ -568,7 +771,6 @@ class ClaudeWrapper:
             f"✅ Claude response received ({elapsed_time:.2f}s, {len(response_text)} chars)"
         )
         self.logger.info(f"📄 Response preview: {response_preview}")
-        self.logger.debug(f"Full response:\n{response_text}")
 
     def _create_preview(self, text: str) -> str:
         """Create a truncated preview of text for logging.
@@ -622,9 +824,6 @@ class ClaudeWrapper:
 
     def _create_not_found_response(self) -> ClaudeResponse:
         """Create a 'command not found' error response.
-
-        Args:
-            start_time: Request start time
 
         Returns:
             Not found error ClaudeResponse
