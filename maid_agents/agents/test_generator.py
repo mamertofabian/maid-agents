@@ -435,7 +435,12 @@ CRITICAL: Use your file editing tools to directly create/update this test file:
                 class_name = artifact.get("class")
                 args = artifact.get("args", [])
                 returns = artifact.get("returns", "None")
-                args_str = ", ".join([f"{a['name']}: {a['type']}" for a in args])
+                args_str = ", ".join(
+                    [
+                        f"{a['name']}: {a['type']}" if "type" in a else a["name"]
+                        for a in args
+                    ]
+                )
 
                 if class_name:
                     lines.append(
