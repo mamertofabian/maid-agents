@@ -1,6 +1,7 @@
 """Manifest Architect Agent - Phase 1: Creates manifests from goals."""
 
 import json
+import os
 import re
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -53,17 +54,21 @@ class ManifestArchitect(BaseAgent):
         if not response.success:
             return self._build_error_response(response.error)
 
-        # Create manifest path
+        # Create manifest path (convert to absolute path for reliable file checking)
         manifest_path = self._build_manifest_path(goal, task_number)
+        absolute_manifest_path = os.path.abspath(manifest_path)
 
         # Read the generated manifest from disk (Claude Code wrote it directly)
         try:
-            with open(manifest_path) as f:
+            with open(absolute_manifest_path) as f:
                 manifest_data = json.load(f)
         except FileNotFoundError:
+            # Provide detailed error with both paths for debugging
+            cwd = os.getcwd()
             return self._build_error_response(
-                f"Manifest file {manifest_path} was not created by Claude Code. "
-                "Ensure Claude Code writes the manifest file directly."
+                f"Manifest file not found at {absolute_manifest_path}. "
+                f"Expected relative path: {manifest_path}, CWD: {cwd}. "
+                "Ensure Claude Code writes the manifest file to the correct location."
             )
         except json.JSONDecodeError as e:
             return self._build_error_response(
@@ -88,18 +93,19 @@ class ManifestArchitect(BaseAgent):
         # Get split prompts (system + user)
         template_manager = get_template_manager()
         manifest_path = self._build_manifest_path(goal, task_number)
+        absolute_manifest_path = os.path.abspath(manifest_path)
 
         prompts = template_manager.render_for_agent(
             "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
         )
 
-        # Add file path instruction to user message
+        # Add file path instruction to user message (use absolute path for clarity)
         user_message = (
             prompts["user_message"]
             + f"""
 
 CRITICAL: Use your file editing tools to directly create this manifest file:
-- {manifest_path}
+- {absolute_manifest_path}
 
 - Write the complete JSON manifest to the file listed above
 - Make all changes directly using your file editing capabilities
