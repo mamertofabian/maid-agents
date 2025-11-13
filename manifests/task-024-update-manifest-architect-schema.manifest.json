@@ -1,0 +1,58 @@
+{
+  "version": "1",
+  "goal": "Update the manifest designer so that it would run the maid schema command to be able to see the updated manifest schema as per the latest MAID specification. This will provide the manifest designer enough information to create or generate an accurate manifest.",
+  "description": "Enhance ManifestArchitect agent to execute 'maid schema' command before generating manifests, providing Claude Code with the current MAID schema specification to ensure accurate manifest generation.",
+  "taskType": "edit",
+  "supersedes": [],
+  "editableFiles": [
+    "maid_agents/agents/manifest_architect.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_024_manifest_architect_schema.py",
+    "maid_agents/core/validation_runner.py",
+    "maid_agents/claude/cli_wrapper.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/agents/manifest_architect.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "_get_maid_schema",
+        "class": "ManifestArchitect",
+        "description": "Execute 'maid schema' command to retrieve the current MAID manifest schema specification",
+        "args": [],
+        "returns": {
+          "type": "str"
+        }
+      },
+      {
+        "type": "function",
+        "name": "_generate_manifest_with_claude",
+        "class": "ManifestArchitect",
+        "description": "Generate manifest using Claude API with split prompts, including MAID schema in context",
+        "args": [
+          {
+            "name": "goal",
+            "type": "str"
+          },
+          {
+            "name": "task_number",
+            "type": "int"
+          },
+          {
+            "name": "previous_errors",
+            "type": "Optional[str]"
+          }
+        ],
+        "returns": {
+          "type": "ClaudeResponse"
+        }
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_024_manifest_architect_schema.py",
+    "-v"
+  ]
+}

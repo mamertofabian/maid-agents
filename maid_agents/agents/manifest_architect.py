@@ -4,10 +4,11 @@ import glob
 import json
 import os
 import re
+import subprocess
 from typing import Optional
 
 from maid_agents.agents.base_agent import BaseAgent
-from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.claude.cli_wrapper import ClaudeResponse, ClaudeWrapper
 from maid_agents.config.template_manager import get_template_manager
 
 
@@ -56,7 +57,7 @@ class ManifestArchitect(BaseAgent):
 
         # Generate manifest using Claude Code
         response = self._generate_manifest_with_claude(
-            goal, task_number, previous_errors
+            goal=goal, task_number=task_number, previous_errors=previous_errors
         )
         if not response.success:
             return self._build_error_response(response.error)
@@ -75,9 +76,42 @@ class ManifestArchitect(BaseAgent):
 
     # ==================== Core Generation Methods ====================
 
+    def _get_maid_schema(self) -> str:
+        """Retrieve the MAID schema specification by running 'maid schema' command.
+
+        Returns:
+            str: The MAID schema JSON specification as a string
+        """
+        try:
+            result = subprocess.run(
+                ["maid", "schema"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+            else:
+                self.logger.warning(
+                    f"Failed to retrieve MAID schema: returncode={result.returncode}, "
+                    f"stderr={result.stderr}"
+                )
+                return ""
+
+        except subprocess.TimeoutExpired:
+            self.logger.error("Timeout while retrieving MAID schema")
+            return ""
+        except FileNotFoundError:
+            self.logger.error("'maid' command not found")
+            return ""
+        except Exception as e:
+            self.logger.error(f"Unexpected error retrieving MAID schema: {e}")
+            return ""
+
     def _generate_manifest_with_claude(
         self, goal: str, task_number: int, previous_errors: Optional[str] = None
-    ):
+    ) -> ClaudeResponse:
         """Generate manifest using Claude API with split prompts.
 
         Args:
@@ -88,6 +122,9 @@ class ManifestArchitect(BaseAgent):
         Returns:
             ClaudeResponse object with generation result
         """
+        # Get MAID schema specification
+        maid_schema = self._get_maid_schema()
+
         # Get split prompts (system + user)
         template_manager = get_template_manager()
         manifests_dir = os.path.abspath("manifests")
@@ -95,6 +132,22 @@ class ManifestArchitect(BaseAgent):
         prompts = template_manager.render_for_agent(
             "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
         )
+
+        # Add MAID schema context
+        schema_context = ""
+        if maid_schema:
+            schema_context = f"""
+
+## MAID Schema Specification
+
+The latest MAID schema specification is:
+
+```json
+{maid_schema}
+```
+
+CRITICAL: Follow this schema exactly when creating the manifest.
+"""
 
         # Add previous errors context if provided
         error_context = ""
@@ -114,6 +167,7 @@ Please address these issues in the new manifest. Ensure:
         # Note: We give Claude Code flexibility on the slug, but require the task number format
         user_message = (
             prompts["user_message"]
+            + schema_context
             + error_context
             + f"""
 
