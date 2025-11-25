@@ -15,6 +15,7 @@ from maid_agents.agents.refiner import Refiner
 from maid_agents.agents.refactorer import Refactorer
 from maid_agents.agents.test_designer import TestDesigner
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
+from maid_agents.core.file_backup import FileBackupManager
 from maid_agents.core.validation_runner import ValidationRunner
 from maid_agents.utils.logging import (
     LogContext,
@@ -392,6 +393,15 @@ class MAIDOrchestrator:
         log_phase_start("IMPLEMENTATION")
         logger.info(f"Implementing manifest: {manifest_path}")
 
+        # Initialize backup manager for retry loop
+        manifest_data = self._load_manifest(manifest_path)
+        if manifest_data:
+            target_files = self._get_target_files(manifest_data)
+            backup_manager = FileBackupManager(dry_run=self.dry_run)
+            backup_manager.backup_files(target_files)
+        else:
+            backup_manager = None
+
         # Step 1: Run tests initially (should fail - red phase of TDD)
         with LogContext(
             "Step 1: Running tests (expecting failure - RED phase)", style="info"
@@ -406,6 +416,14 @@ class MAIDOrchestrator:
 
         while iteration < max_iterations:
             iteration += 1
+
+            # Restore files before retry (skip first iteration)
+            if iteration > 1 and backup_manager:
+                logger.info(
+                    f"Restoring files to original state before retry {iteration}"
+                )
+                backup_manager.restore_files()
+
             log_iteration(iteration, max_iterations, "Generating code to pass tests")
 
             # Step 2: Generate code using Developer agent
@@ -491,6 +509,8 @@ class MAIDOrchestrator:
                     error_msg = f"Systemic error detected (cannot be fixed by changing implementation):\n{systemic_msg}"
                     logger.error(error_msg)
                     log_phase_end("IMPLEMENTATION", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
                     return {
                         "success": False,
                         "iterations": iteration,
@@ -513,6 +533,8 @@ class MAIDOrchestrator:
                     # Success! Tests pass and manifest validates
                     logger.info(f"Implementation complete in {iteration} iteration(s)!")
                     log_phase_end("IMPLEMENTATION", success=True)
+                    if backup_manager:
+                        backup_manager.cleanup()
                     return {
                         "success": True,
                         "iterations": iteration,
@@ -537,6 +559,8 @@ class MAIDOrchestrator:
         error_msg = f"Implementation loop failed after {max_iterations} iterations. Last error: {last_error}"
         logger.error(error_msg)
         log_phase_end("IMPLEMENTATION", success=False)
+        if backup_manager:
+            backup_manager.cleanup()
         return {
             "success": False,
             "iterations": iteration,
@@ -676,6 +700,15 @@ class MAIDOrchestrator:
         log_phase_start("REFACTORING")
         logger.info(f"Refactoring code for manifest: {manifest_path}")
 
+        # Initialize backup manager for retry loop
+        manifest_data = self._load_manifest(manifest_path)
+        if manifest_data:
+            target_files = self._get_target_files(manifest_data)
+            backup_manager = FileBackupManager(dry_run=self.dry_run)
+            backup_manager.backup_files(target_files)
+        else:
+            backup_manager = None
+
         # Lazy-initialize refactorer if needed
         if not hasattr(self, "refactorer"):
             self.refactorer = Refactorer(self.claude)
@@ -685,6 +718,14 @@ class MAIDOrchestrator:
 
         while iteration < max_iterations:
             iteration += 1
+
+            # Restore files before retry (skip first iteration)
+            if iteration > 1 and backup_manager:
+                logger.info(
+                    f"Restoring files to original state before retry {iteration}"
+                )
+                backup_manager.restore_files()
+
             log_iteration(iteration, max_iterations, "Refactoring code")
 
             # Step 1: Refactor code
@@ -707,6 +748,8 @@ class MAIDOrchestrator:
                         error_msg = f"Systemic error detected (cannot be fixed by refactoring):\n{systemic_msg}"
                         logger.error(error_msg)
                         log_phase_end("REFACTORING", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
                         return {
                             "success": False,
                             "iterations": iteration,
@@ -744,6 +787,8 @@ class MAIDOrchestrator:
                     error_msg = f"Systemic error detected (cannot be fixed by refactoring):\n{systemic_msg}"
                     logger.error(error_msg)
                     log_phase_end("REFACTORING", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
                     return {
                         "success": False,
                         "iterations": iteration,
@@ -754,6 +799,8 @@ class MAIDOrchestrator:
                 # Refactoring complete - both validations pass!
                 logger.info(f"Refactoring complete in {iteration} iteration(s)!")
                 log_phase_end("REFACTORING", success=True)
+                if backup_manager:
+                    backup_manager.cleanup()
                 return {
                     "success": True,
                     "iterations": iteration,
@@ -776,6 +823,8 @@ class MAIDOrchestrator:
         error_msg = f"Refactoring loop failed after {max_iterations} iterations. Last error: {last_error}"
         logger.error(error_msg)
         log_phase_end("REFACTORING", success=False)
+        if backup_manager:
+            backup_manager.cleanup()
         return {
             "success": False,
             "iterations": iteration,
@@ -1012,3 +1061,34 @@ class MAIDOrchestrator:
             f"Unexpected error: {error_type}: {error_message}",
             "Review the stack trace for details. This may require code changes or debugging.",
         )
+
+    def _load_manifest(self, manifest_path: str) -> Optional[dict]:
+        """Load and parse manifest JSON file with error handling.
+
+        Args:
+            manifest_path: Path to manifest file
+
+        Returns:
+            Parsed manifest data as dict, or None if loading fails
+        """
+        try:
+            with open(manifest_path, "r") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to load manifest: {e}")
+            return None
+
+    def _get_target_files(self, manifest_data: dict) -> list:
+        """Extract target files from manifest.
+
+        Combines creatableFiles and editableFiles lists from manifest.
+
+        Args:
+            manifest_data: Parsed manifest data
+
+        Returns:
+            List of file paths that are targets for backup/restore
+        """
+        creatable = manifest_data.get("creatableFiles", [])
+        editable = manifest_data.get("editableFiles", [])
+        return creatable + editable
