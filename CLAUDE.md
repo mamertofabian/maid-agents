@@ -8,6 +8,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MAID Agents is a Claude Code automation layer for the MAID (Manifest-driven AI Development) methodology. It provides CLI tools and agents that automate the four phases of MAID workflow by invoking Claude Code in headless mode.
 
+## MAID Workflow (Required for ALL changes)
+
+### Phase 1: Goal Definition
+Confirm the high-level goal with user before proceeding.
+
+### Phase 2: Planning Loop
+**Before ANY implementation - iterative refinement:**
+1. Draft manifest (`manifests/task-XXX.manifest.json`) - **PRIMARY CONTRACT**
+2. Draft behavioral tests (`tests/test_task_XXX_*.py`) to support and verify the manifest
+3. Run structural validation (checks manifest↔tests AND implementation↔history):
+   `uv run maid validate manifests/task-XXX.manifest.json --use-manifest-chain`
+4. Refine BOTH tests & manifest together until validation passes
+
+### Phase 3: Implementation
+1. Load ONLY files from manifest (`editableFiles` + `readonlyFiles`)
+2. Implement code to pass tests
+3. Run behavioral validation (from `validationCommand`)
+4. Iterate until all tests pass
+
+### Phase 3.5: Refactoring
+1. After tests pass, improve code quality
+2. Maintain public API and manifest compliance
+3. Apply clean code principles and patterns
+4. Validate tests still pass after each change
+
+### Phase 4: Integration
+Verify complete chain: `uv run python -m pytest tests/ -v`
+
 **📖 Important Reference:** When working with this project, always refer to `docs/maid_specs.md` for the complete MAID methodology specification and principles.
 
 ### Self-Improvement Architecture
