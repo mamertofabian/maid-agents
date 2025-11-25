@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 from typing import Optional
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -88,6 +89,25 @@ class ManifestArchitect(BaseAgent):
         Returns:
             ClaudeResponse object with generation result
         """
+        # Retrieve current MAID schema for context
+        schema = self._get_manifest_schema()
+        schema_context = ""
+        if schema:
+            schema_json = json.dumps(schema, indent=2)
+            schema_context = f"""
+
+IMPORTANT: Current MAID Manifest Schema (from 'maid schema' command):
+```json
+{schema_json}
+```
+
+Ensure the generated manifest strictly complies with this schema.
+"""
+        else:
+            self.logger.warning(
+                "Schema retrieval failed - proceeding without schema context"
+            )
+
         # Get split prompts (system + user)
         template_manager = get_template_manager()
         manifests_dir = os.path.abspath("manifests")
@@ -114,6 +134,7 @@ Please address these issues in the new manifest. Ensure:
         # Note: We give Claude Code flexibility on the slug, but require the task number format
         user_message = (
             prompts["user_message"]
+            + schema_context
             + error_context
             + f"""
 
@@ -199,6 +220,40 @@ Requirements:
             "manifest_path": manifest_path,
             "manifest_data": manifest_data,
         }
+
+    def _get_manifest_schema(self) -> dict:
+        """Retrieve MAID manifest schema by running 'maid schema' command.
+
+        Returns:
+            dict: Parsed JSON schema on success, empty dict on failure
+        """
+        try:
+            result = subprocess.run(
+                ["maid", "schema"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode == 0 and result.stdout:
+                schema = json.loads(result.stdout)
+                self.logger.debug("Successfully retrieved manifest schema")
+                return schema
+            else:
+                self.logger.warning(
+                    f"Failed to retrieve schema: {result.stderr or 'Unknown error'}"
+                )
+                return {}
+
+        except subprocess.TimeoutExpired:
+            self.logger.warning("Schema retrieval timed out after 30 seconds")
+            return {}
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse schema JSON: {e}")
+            return {}
+        except Exception as e:
+            self.logger.warning(f"Error retrieving schema: {e}")
+            return {}
 
     # ==================== Path and Naming Methods ====================
 

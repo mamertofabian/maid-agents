@@ -1,0 +1,63 @@
+{
+  "goal": "Integrate maid schema command into ManifestArchitect to provide schema context for manifest generation",
+  "description": "Update the ManifestArchitect agent to run 'maid schema' command before generating manifests, and include the schema output in the prompt context when calling Claude. This enables the agent to generate more accurate manifests that comply with the latest MAID specification. The schema retrieval is implemented as a private helper method within ManifestArchitect.",
+  "taskType": "edit",
+  "creatableFiles": [
+    "tests/test_task_025_schema_integration.py"
+  ],
+  "editableFiles": [
+    "maid_agents/agents/manifest_architect.py"
+  ],
+  "readonlyFiles": [
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/config/template_manager.py",
+    "maid_agents/core/validation_runner.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/agents/manifest_architect.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ManifestArchitect",
+        "bases": ["BaseAgent"],
+        "description": "Agent that creates MAID manifests from high-level goals, enhanced to use schema context"
+      },
+      {
+        "type": "function",
+        "name": "create_manifest",
+        "class": "ManifestArchitect",
+        "args": [
+          {
+            "name": "goal",
+            "type": "str"
+          },
+          {
+            "name": "task_number",
+            "type": "int"
+          },
+          {
+            "name": "previous_errors",
+            "type": "Optional[str]",
+            "default": "None"
+          }
+        ],
+        "returns": "dict",
+        "description": "Create manifest from goal description, now retrieves and includes schema context"
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "ManifestArchitect",
+        "args": [],
+        "returns": "dict",
+        "description": "Execute manifest creation"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_025_schema_integration.py",
+    "-v"
+  ]
+}
