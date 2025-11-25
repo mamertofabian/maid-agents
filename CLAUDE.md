@@ -268,3 +268,38 @@ ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
 3. **Tool Allowlist**: ClaudeWrapper restricts allowed Bash commands for security
 4. **Timeout Handling**: Default 300s timeout with systemic error detection for hangs
 5. **Path Validation**: All paths validated against project directory before use
+
+## Task Completion Checklist
+
+**⚠️ CRITICAL: Before declaring any task complete, you MUST run all of the following checks:**
+
+```bash
+# Code quality checks
+make lint          # Check for linting errors
+make format        # Format code (fixes formatting issues)
+make test          # Run all tests
+
+# MAID validation checks
+maid validate      # Validate all manifests (or specific manifest)
+maid test          # Run validation commands from manifests
+```
+
+**All checks must pass before a task is considered complete.** Do not skip any of these steps.
+
+### Code Quality Standards
+
+**🚫 Zero Tolerance for Workarounds and Band-Aid Solutions:**
+
+- **Be honest about code quality** - If something is broken, fix it properly rather than patching it
+- **No shortcuts** - Don't celebrate completion of broken or rotten code
+- **Proper solutions only** - Take the time to implement correct, maintainable solutions
+- **Address root causes** - Fix underlying issues, not just symptoms
+- **Test thoroughly** - Ensure all tests pass and code behaves correctly
+
+If you encounter issues during implementation:
+1. **Stop and assess** - Understand the root cause
+2. **Design properly** - Plan the correct solution
+3. **Implement correctly** - Build it right the first time
+4. **Validate completely** - Run all checks before declaring done
+
+**Remember:** A task is only complete when the code is correct, tested, validated, and maintainable. Premature celebration of incomplete or broken code leads to technical debt and future problems.
