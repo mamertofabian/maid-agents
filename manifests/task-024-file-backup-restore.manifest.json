@@ -1,0 +1,82 @@
+{
+  "goal": "Implement file backup and restore mechanism for implementation and refactoring retry loops",
+  "description": "During MAID workflow retry loops (implementation and refactoring phases), files are overwritten without preserving originals. When a retry occurs, the system operates on already-modified (potentially broken) files instead of starting fresh from the original state. This implementation adds a FileBackupManager class using Python's tempfile module to backup files before loops start, restore them before each retry iteration, and cleanup on completion. Integration points added to both run_implementation_loop and run_refactoring_loop in orchestrator.",
+  "taskType": "create",
+  "creatableFiles": [
+    "maid_agents/core/file_backup.py"
+  ],
+  "editableFiles": [],
+  "readonlyFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/config/settings.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/file_backup.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "FileBackupManager",
+        "description": "Manages file backup and restore operations using Python's tempfile module for MAID workflow retry loops"
+      },
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "FileBackupManager",
+        "args": [
+          {
+            "name": "dry_run",
+            "type": "bool",
+            "default": "False"
+          }
+        ],
+        "returns": "None",
+        "description": "Initialize FileBackupManager with dry run mode flag"
+      },
+      {
+        "type": "function",
+        "name": "backup_files",
+        "class": "FileBackupManager",
+        "args": [
+          {
+            "name": "file_paths",
+            "type": "List[str]"
+          }
+        ],
+        "returns": "None",
+        "description": "Backup specified files to temporary directory before loop starts"
+      },
+      {
+        "type": "function",
+        "name": "restore_files",
+        "class": "FileBackupManager",
+        "args": [],
+        "returns": "None",
+        "description": "Restore files from backup to original locations"
+      },
+      {
+        "type": "function",
+        "name": "cleanup",
+        "class": "FileBackupManager",
+        "args": [],
+        "returns": "None",
+        "description": "Remove backup directory and reset state"
+      },
+      {
+        "type": "function",
+        "name": "is_active",
+        "class": "FileBackupManager",
+        "args": [],
+        "returns": "bool",
+        "description": "Check if backup is currently active"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_024_file_backup.py",
+    "tests/test_task_024_backup_integration.py",
+    "-v"
+  ]
+}
