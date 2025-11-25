@@ -66,12 +66,6 @@ The `generate-test` command supports three modes:
 
 See `docs/architecture.md` for detailed architecture and design decisions.
 
-## Development
-
-This package dogfoods the MAID methodology - it was built using MAID itself!
-
-All manifests are in `manifests/`, all behavioral tests in `tests/`.
-
 ## License
 
 MIT License - See LICENSE file

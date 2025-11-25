@@ -2,357 +2,269 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**⚠️ CRITICAL: This project dogfoods MAID v1.2. Every code change MUST follow the MAID workflow.**
-
 ## Project Overview
 
-MAID Agents is a Claude Code automation layer for the MAID (Manifest-driven AI Development) methodology. It provides CLI tools and agents that automate the four phases of MAID workflow by invoking Claude Code in headless mode.
+MAID Agents is a Claude Code automation layer for the MAID (Manifest-driven AI Development) methodology. It orchestrates TDD workflows using Claude Code's headless CLI mode across four phases:
 
-**📖 Important Reference:** When working with this project, always refer to `docs/maid_specs.md` for the complete MAID methodology specification and principles.
+1. **Phase 1: Goal Definition** - ManifestArchitect agent creates precise manifests
+2. **Phase 2: Planning Loop** - TestDesigner agent generates behavioral tests
+3. **Phase 3: Implementation** - Developer agent implements code to pass tests
+4. **Phase 3.5: Refactoring** - Refactorer agent improves code quality
 
-### Self-Improvement Architecture
+## Development Commands
 
-**CRITICAL: This project uses itself to improve itself.**
-
-Both tools are installed globally in miniconda and available system-wide:
-- **maid-runner** (CLI: `maid`) - Validation engine for manifests
-- **maid_agents** (CLI: `ccmaid`) - This package, the automation layer
-
-**This means `ccmaid` can be used to develop `ccmaid` itself.** This self-referential architecture enables rapid iteration but has important implications:
-
-⚠️ **Potential Gotchas:**
-1. **Version Confusion** - Are you running the installed `ccmaid` or developing it?
-2. **Infinite Recursion** - `ccmaid` could theoretically invoke itself recursively
-3. **Bootstrap Paradox** - Changes to agents may affect their ability to develop themselves
-4. **Debugging Complexity** - The tool being debugged might be the tool doing the debugging
-
-**Best Practices:**
-- When manually developing: Work directly in this codebase with tests
-- When using `ccmaid` to develop `ccmaid`: Be explicit about which version you're running
-- Always test changes to agents thoroughly before using them to develop themselves
-- Use `--mock` mode when testing to avoid recursive API calls
-- Be aware that agent behavior changes can affect subsequent development iterations
-
-## Key Commands
-
-### Development
-
+### Testing
 ```bash
-# Install package in editable mode
-uv pip install -e .
-
-# Run tests
-pytest tests/ -v
-
-# Run specific task tests
-pytest tests/test_task_018_agent_visibility.py -v
-
-# Code quality
-black maid_agents/        # Format code
-ruff check maid_agents/   # Lint code
-```
-
-**Makefile Convenience Commands:**
-
-The project includes a `Makefile` with convenient shortcuts for common development tasks:
-
-```bash
-# Show all available commands
-make help
-
-# Install package in editable mode
-make install
-
-# Install development dependencies
-make install-dev
-
 # Run all tests
 make test
+uv run python -m pytest tests/ -v
 
-# Validate all manifests (with manifest chain)
+# Run specific test file
+uv run python -m pytest tests/test_task_001_orchestrator_skeleton.py -v
+
+# Run with coverage
+uv run python -m pytest tests/ --cov=maid_agents --cov-report=html
+```
+
+### Code Quality
+```bash
+# Run all quality checks
+make lint          # Check code quality with ruff
+make lint-fix      # Auto-fix linting issues
+make format        # Format code with black
+```
+
+### Manifest Validation
+```bash
+# Validate all manifests
 make validate
 
-# Run linting checks
-make lint
-
-# Run linting with auto-fix
-make lint-fix
-
-# Format code
-make format
+# Validate specific manifest
+uv run maid validate manifests/task-042.manifest.json --use-manifest-chain
 ```
 
-### Using ccmaid CLI
-
+### Installation
 ```bash
-# Full workflow (all phases)
-ccmaid run "Add user authentication to the API"
+# Install package in editable mode
+make install
+uv pip install -e .
 
-# Phase 1-2: Planning (manifest + tests)
-ccmaid plan "Add user authentication" --max-iterations 10
-
-# Phase 3: Implementation
-ccmaid implement manifests/task-042.manifest.json --max-iterations 20
-
-# Phase 3.5: Refactoring
-ccmaid refactor manifests/task-042.manifest.json
-
-# Phase 2 Quality Gate: Refinement
-ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
-
-# Generate tests from existing implementation (reverse workflow)
-ccmaid generate-test manifests/task-042.manifest.json -i path/to/implementation.py
-
-# Mock mode (for testing without API calls)
-ccmaid --mock plan "Test feature"
+# Install with development dependencies
+make install-dev
+uv pip install -e ".[dev]"
 ```
-
-**About `generate-test` Command:**
-
-The `generate-test` command supports the reverse workflow where you have existing code and need to generate behavioral tests. This is particularly useful after using `maid snapshot` to create a manifest from existing code.
-
-**Three modes of operation:**
-1. **Create new**: Generate tests from scratch when none exist
-2. **Enhance stub**: Fill in placeholder tests created by `maid snapshot`
-3. **Improve existing**: Enhance and complete existing tests
-
-**Typical workflow:**
-```bash
-# 1. Generate manifest from existing code (maid-runner)
-maid snapshot ../other-repo/utils/formatter.py
-
-# 2. Generate behavioral tests (maid_agents)
-ccmaid generate-test manifests/task-NNN-formatter.manifest.json -i ../other-repo/utils/formatter.py
-
-# 3. Validate complete manifest
-maid validate manifests/task-NNN-formatter.manifest.json
-```
-
-### Using maid CLI
-
-The `maid` command (from **maid-runner** package) provides validation and snapshot capabilities for MAID manifests:
-
-```bash
-# Validate a single manifest
-maid validate manifests/task-042.manifest.json
-
-# Validate with manifest chain (merges related manifests)
-maid validate manifests/task-042.manifest.json --use-manifest-chain
-
-# Validate all manifests in a directory
-maid validate --manifest-dir manifests
-
-# Behavioral validation (checks test usage of artifacts)
-maid validate manifests/task-042.manifest.json --validation-mode behavioral
-
-# Generate snapshot manifest from existing Python file
-maid snapshot maid_agents/core/orchestrator.py
-
-# Generate snapshot to specific directory
-maid snapshot maid_agents/core/orchestrator.py --output-dir manifests
-
-# Run validation commands from all manifests
-maid test
-
-# Run validation for a specific manifest
-maid test --manifest task-042.manifest.json
-
-# Run with verbose output
-maid test --verbose
-
-# Fail fast on first error
-maid test --fail-fast
-```
-
-**Command Reference:**
-
-- **`maid validate`**: Validates manifest structure and compliance
-  - `--validation-mode {implementation,behavioral}`: Implementation checks definitions, behavioral checks test usage
-  - `--use-manifest-chain`: Merge related manifests for validation (auto-enabled for directory validation)
-  - `--quiet, -q`: Suppress success messages, only show errors
-  - `--manifest-dir`: Validate all manifests in directory (mutually exclusive with manifest_path)
-
-- **`maid snapshot`**: Generates MAID manifests from existing Python files
-  - `--output-dir`: Directory to write manifest (default: `manifests`)
-  - `--force`: Overwrite existing manifests without prompting
-
-- **`maid test`**: Runs validation commands from manifests
-  - `--manifest, -m`: Run validation for single manifest (filename relative to manifest-dir or absolute path)
-  - `--manifest-dir`: Directory containing manifests (default: `manifests`)
-  - `--fail-fast`: Stop execution on first failure
-  - `--verbose, -v`: Show detailed command output
-  - `--quiet, -q`: Only show summary (suppress per-manifest output)
-  - `--timeout`: Command timeout in seconds (default: 300)
 
 ## Architecture
 
 ### Core Components
 
-**MAIDOrchestrator** (`maid_agents/core/orchestrator.py`)
-- Coordinates the complete MAID workflow
-- Manages state machine: INIT → PLANNING → IMPLEMENTING → REFACTORING → COMPLETE
-- Three main loops:
-  - `run_planning_loop()`: Phase 1-2 (manifest + tests with validation)
-  - `run_implementation_loop()`: Phase 3 (code generation until tests pass)
-  - `run_refinement_loop()`: Phase 2 quality gate (manifest/test improvement)
-- Uses `dry_run` mode for testing without file writes
-- Path validation to prevent directory traversal attacks
+**Orchestrator** (`maid_agents/core/orchestrator.py`):
+- Central workflow coordinator with state machine (WorkflowState enum)
+- Manages four workflow loops: planning, implementation, refinement, and refactoring
+- Each loop runs iteratively until validation passes or max iterations reached
+- Uses dependency injection for agents and validation runner (enables testing with mocks)
+- Dry-run mode available for testing without file writes or API calls
 
-**Agent System** (`maid_agents/agents/`)
+**Agent System** (`maid_agents/agents/`):
 - All agents inherit from `BaseAgent` abstract class
-- **ManifestArchitect**: Creates MAID manifests from high-level goals
-- **TestDesigner**: Generates behavioral tests from manifests (TDD approach)
-- **Developer**: Implements code to pass tests
-- **Refactorer**: Improves code quality (Phase 3.5)
-- **Refiner**: Iteratively improves manifest and test quality
-- Each agent wraps Claude Code CLI via `ClaudeWrapper`
+- Each agent wraps `ClaudeWrapper` to invoke Claude Code headless mode
+- Agent types:
+  - `ManifestArchitect`: Creates MAID manifests from goals
+  - `TestDesigner`: Generates behavioral tests from manifests
+  - `Developer`: Implements code to pass tests
+  - `Refactorer`: Refactors code while maintaining test compliance
+  - `Refiner`: Improves manifest and test quality
+  - `TestGenerator`: Generates tests from existing implementation (reverse workflow)
 
-**TestGenerator** (`maid_agents/core/test_generator.py`)
-- Generates or enhances behavioral tests from existing implementations (reverse workflow)
-- Detects existing test files and analyzes if they're stubs or complete
-- Three operational modes: create new, enhance stub, improve existing
-- Builds context-aware prompts with manifest, implementation, and existing tests
-- Complements `maid snapshot` to complete the reverse engineering workflow
+**Claude Integration** (`maid_agents/claude/cli_wrapper.py`):
+- Wraps Claude Code headless CLI with `--print --output-format=stream-json --verbose`
+- Parses streaming JSON responses (tool_use, tool_result, text blocks)
+- Mock mode available for testing without API calls
+- Configurable timeout, model, and temperature
+- Tool allowlist restricts Claude to safe operations (pytest, maid commands, linting)
 
-**ClaudeWrapper** (`maid_agents/claude/cli_wrapper.py`)
-- Invokes Claude Code headless CLI: `claude --print <prompt> --output-format json`
-- Supports `mock_mode` for testing without real API calls
-- Returns `ClaudeResponse` dataclass with success/error status
+**Template System** (`maid_agents/config/template_manager.py`):
+- Loads prompt templates from `maid_agents/config/templates/*.txt`
+- Uses Python's `string.Template` for variable substitution
+- Templates cached for performance
+- Key templates: manifest_creation, test_generation, implementation, refactor, refine
 
-**ValidationRunner** (`maid_agents/core/validation_runner.py`)
-- Wraps `maid` CLI commands for validation
-- `validate_manifest()`: Structural validation via `maid validate`
-- `run_behavioral_tests()`: Executes pytest from manifest's `validationCommand`
-- Parses validation errors for feedback loops
+**Validation** (`maid_agents/core/validation_runner.py`):
+- Runs `maid validate` for structural validation
+- Runs `maid test` or manifest's `validationCommand` for behavioral tests
+- Two validation modes: structural (manifest schema) and behavioral (tests use artifacts)
 
 ### Workflow Loops
 
-**Planning Loop** (orchestrator.py:164-262)
-1. ManifestArchitect creates manifest
-2. TestDesigner generates tests
-3. Behavioral validation (tests must USE artifacts)
-4. Iterate until validation passes (max 10 iterations)
+Each loop follows a similar pattern:
+1. Agent generates output (manifest/tests/code)
+2. Files written to disk (skipped in dry_run mode)
+3. Validation runs (structural and/or behavioral)
+4. If validation fails, error feedback provided to next iteration
+5. Loop continues until success or max iterations
 
-**Implementation Loop** (orchestrator.py:335-444)
-1. Run tests (should fail - red phase)
-2. Developer generates code
-3. Write code to files
-4. Run tests again
-5. If pass, validate manifest compliance
-6. Iterate until success (max 20 iterations)
+**Planning Loop** (orchestrator.py:174-306):
+- ManifestArchitect creates manifest with task number
+- TestDesigner generates behavioral tests
+- Behavioral validation ensures tests USE declared artifacts
+- Iterates until both manifest and tests are valid
 
-**Refinement Loop** (orchestrator.py:446-533)
-1. Refiner analyzes manifest and tests
-2. Apply improvements
-3. Structural validation
-4. Behavioral validation
-5. Iterate until both pass (max 5 iterations)
+**Implementation Loop** (orchestrator.py:379-544):
+- Developer generates code to pass tests
+- Initial run expects failure (RED phase of TDD)
+- Code written and tests rerun (GREEN phase)
+- Manifest validation ensures compliance
+- Systemic error detection prevents infinite loops on non-implementation issues
 
-### MAID Workflow Integration
+**Refinement Loop** (orchestrator.py:546-661):
+- Refiner improves manifest and tests based on user goals
+- Both structural and behavioral validation required
+- Useful for quality gates and test coverage improvement
 
-This codebase follows MAID methodology:
-- All tasks have manifests in `manifests/task-*.manifest.json`
-- All behavioral tests in `tests/test_task_*_*.py`
-- Sequential task numbering (task-001, task-002, etc.)
-- Validation enforced via `maid validate --use-manifest-chain`
+**Refactoring Loop** (orchestrator.py:663-783):
+- Refactorer improves code quality while maintaining behavior
+- Tests must continue passing (behavioral validation)
+- Manifest compliance validated (structural validation)
 
-## Configuration
+### Error Handling
 
-**Settings** (`maid_agents/config/settings.py`)
-- `ClaudeConfig`: Model, timeout, temperature
-- `MAIDConfig`: Directory paths, iteration limits
-- Defaults: claude-sonnet-4-5-20250929, 300s timeout, 0.0 temperature
+**Systemic Error Detection** (`orchestrator.py:785-856`):
+- Detects errors that cannot be fixed by changing implementation/refactoring
+- Patterns: test collection failures, import errors, timeouts, pytest config issues
+- Prevents infinite loops by failing fast on systemic issues
+- Returns tuple: (is_systemic, error_message)
 
-## Key Design Patterns
+**Error Categorization** (`orchestrator.py:912-1014`):
+- Categories: network, filesystem, validation, parsing, configuration, resource, subprocess
+- Each category has recovery guidance and user-friendly messages
+- Recoverable vs fatal error distinction
+- Used by `_handle_error()` for comprehensive error reporting
 
-**Mock Mode for Testing**
-- All agents accept `ClaudeWrapper(mock_mode=True)` for testing
-- Orchestrator uses `dry_run=True` to skip file writes
-- Enables unit testing without API calls or file I/O
+### Testing Conventions
 
-**Iterative Refinement with Feedback**
-- Each loop collects validation errors
-- Errors passed to next iteration as context
-- Maximum iteration limits prevent infinite loops
+**Test File Naming**:
+- Tests named `test_task_XXX_*.py` matching manifest numbering
+- Example: `test_task_001_orchestrator_skeleton.py` for task-001 manifest
+- Enables traceability between manifests, implementation, and tests
 
-**Path Safety**
-- `_validate_safe_path()` prevents directory traversal
-- All file operations resolve paths relative to project root
-- MAX_FILE_SIZE (1MB) limit on generated code
+**Test Structure**:
+- Follow pytest conventions with fixtures and parametrization
+- Use `docs/unit-testing-rules.md` for testing guidelines
+- Mock external dependencies (Claude API, filesystem in some cases)
+- Test behavior, not implementation details
+- Use AAA pattern: Arrange, Act, Assert
 
-**Agent Visibility** (Task-018)
-- Agents must operate within manifest boundaries
-- Only access files listed in manifest (creatable/editable/readonly)
-- Prevents context leakage and ensures isolation
+**Pytest Configuration** (`pyproject.toml`):
+- Test path: `tests/`
+- Filters warnings for test class name collisions (TestDesigner, TestGenerator)
+- These are agent classes, not test classes
 
-## MAID Compliance Notes
+### Configuration
 
-When making changes to this codebase:
+**Config Files** (`maid_agents/config/`):
+- `ccmaid.yaml` or `ccmaid.toml` for project configuration
+- Config loader searches: ./.ccmaid.yaml, ~/.ccmaid.yaml
+- Configuration schema includes: model, timeout, temperature, mock_mode
+- CLI arguments override config file settings
 
-1. **Always create manifests first** - Use sequential numbering
-2. **Create tests before implementation** - Tests define success criteria
-3. **Validate early and often** - Run `maid validate` before implementation
-4. **Honor the chain** - Use `--use-manifest-chain` for validation
-5. **Preserve public APIs** - All public methods/classes must be in manifests
+**Task Numbering**:
+- Manifests use sequential numbering: task-001, task-002, etc.
+- `_get_next_task_number()` scans manifests/ directory for next available number
+- Format: `task-{number:03d}.manifest.json` (zero-padded 3 digits)
 
-## Task Completion Checklist
+## MAID Methodology Alignment
 
-**⚠️ CRITICAL: Before declaring any task complete, you MUST run all of the following checks:**
+This codebase strictly follows MAID principles:
 
-```bash
-# Code quality checks
-make lint          # Check for linting errors
-make format        # Format code (fixes formatting issues)
-make test          # Run all tests
+1. **Explicitness over Implicitness**: All changes declared in manifests with expectedArtifacts
+2. **Test-Driven Validation**: Behavioral tests define success criteria
+3. **Verifiable Chronology**: Sequential task numbering creates audit trail
+4. **Validation Modes**: Behavioral (tests USE artifacts) vs Structural (manifest schema)
+5. **Manifest Chain**: `--use-manifest-chain` flag for cross-manifest artifact resolution
 
-# MAID validation checks
-maid validate      # Validate all manifests (or specific manifest)
-maid test          # Run validation commands from manifests
+## Key Implementation Details
+
+### Claude CLI Invocation Pattern
+
+```python
+# Standard invocation in ClaudeWrapper
+cmd = [
+    "claude",
+    "--headless",
+    "--print",
+    "--output-format=stream-json",
+    "--verbose",
+    f"--model={self.model}",
+    f"--timeout={self.timeout}",
+    prompt
+]
 ```
 
-**All checks must pass before a task is considered complete.** Do not skip any of these steps.
+The wrapper parses streaming JSON output and reconstructs responses from tool_use, tool_result, and text blocks.
 
-### Code Quality Standards
+### Template Variable Substitution
 
-**🚫 Zero Tolerance for Workarounds and Band-Aid Solutions:**
+Templates use `$variable` syntax for substitution:
+- `$goal`: User's high-level goal
+- `$task_number`: Sequential task number
+- `$manifest_path`: Path to manifest file
+- `$test_errors`: Errors from test execution
+- `$validation_feedback`: Feedback from validation failures
 
-- **Be honest about code quality** - If something is broken, fix it properly rather than patching it
-- **No shortcuts** - Don't celebrate completion of broken or rotten code
-- **Proper solutions only** - Take the time to implement correct, maintainable solutions
-- **Address root causes** - Fix underlying issues, not just symptoms
-- **Test thoroughly** - Ensure all tests pass and code behaves correctly
+### Safe Path Validation
 
-If you encounter issues during implementation:
-1. **Stop and assess** - Understand the root cause
-2. **Design properly** - Plan the correct solution
-3. **Implement correctly** - Build it right the first time
-4. **Validate completely** - Run all checks before declaring done
+`_validate_safe_path()` (orchestrator.py:103-126) ensures all file operations are within project directory to prevent directory traversal attacks. Critical for security when generating file paths from AI responses.
 
-**Remember:** A task is only complete when the code is correct, tested, validated, and maintainable. Premature celebration of incomplete or broken code leads to technical debt and future problems.
+### File Size Limits
 
-## Testing Strategy
+`MAX_FILE_SIZE = 1_000_000` (1MB) prevents excessive code generation. Checked before writing files in implementation loop.
 
-- **Unit tests**: Test individual agents with `mock_mode=True`
-- **Integration tests**: Test orchestrator loops with `dry_run=True`
-- **Behavioral tests**: Full workflow validation via pytest
-- All tests follow naming: `test_task_NNN_description.py`
+## Common Workflows
+
+### Standard TDD Workflow
+```bash
+ccmaid run "Add user authentication to the API"
+```
+Executes: Planning loop → Implementation loop
+
+### Separate Phases
+```bash
+ccmaid plan "Add user authentication"              # Phase 1-2
+ccmaid implement manifests/task-042.manifest.json  # Phase 3
+ccmaid refactor manifests/task-042.manifest.json   # Phase 3.5
+```
+
+### Reverse Workflow (Tests from Code)
+```bash
+maid snapshot path/to/existing/code.py                           # Create manifest
+ccmaid generate-test manifests/task-NNN-code.manifest.json -i path/to/existing/code.py
+```
+
+### Quality Gate
+```bash
+ccmaid refine manifests/task-042.manifest.json --goal "Improve test coverage"
+```
 
 ## Dependencies
 
-- **maid-runner**: Core validation engine (sibling package)
-- **click**: CLI framework
-- **rich**: Terminal formatting
-- **pytest**: Test framework
-- **black**, **ruff**: Code quality tools
+**Runtime**:
+- `maid-runner>=0.1.0` (external package for manifest validation and testing)
+- `click>=8.0.0` (CLI framework)
+- `rich>=13.0.0` (terminal formatting)
 
-## CLI Entry Point
+**Development**:
+- `pytest>=8.4.2` (testing framework)
+- `black>=25.1.0` (code formatting)
+- `ruff>=0.13.0` (linting)
 
-`ccmaid` command → `maid_agents/cli/main.py:main()` → MAIDOrchestrator or TestGenerator
+**External Tools**:
+- Claude Code CLI (authenticated and installed)
+- Python 3.12+
 
-All commands route through argparse subcommands:
-- **run**: Full workflow via MAIDOrchestrator
-- **plan**: Phase 1-2 via MAIDOrchestrator
-- **implement**: Phase 3 via MAIDOrchestrator
-- **refactor**: Phase 3.5 via MAIDOrchestrator
-- **refine**: Phase 2 quality gate via MAIDOrchestrator
-- **generate-test**: Reverse workflow via TestGenerator (new in task-019)
+## Important Constraints
+
+1. **Mock Mode Default**: `ClaudeWrapper` defaults to `mock_mode=True` for safety
+2. **Dry Run Mode**: Orchestrator accepts `dry_run=True` to skip file writes (testing)
+3. **Tool Allowlist**: ClaudeWrapper restricts allowed Bash commands for security
+4. **Timeout Handling**: Default 300s timeout with systemic error detection for hangs
+5. **Path Validation**: All paths validated against project directory before use
