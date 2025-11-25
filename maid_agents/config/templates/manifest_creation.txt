@@ -15,35 +15,12 @@ REQUIREMENTS:
 
 CRITICAL: Your response must be ONLY the raw JSON object. No markdown, no explanation, no code fences.
 
-MANIFEST SCHEMA:
-{
-  "goal": "Concise description of what this task accomplishes",
-  "taskType": "create" | "edit" | "refactor",
-  "creatableFiles": ["path/to/new/file.py"],        // For taskType="create"
-  "editableFiles": ["path/to/existing/file.py"],    // For taskType="edit"
-  "readonlyFiles": ["tests/test_*.py"],             // Test files (readonly)
-  "expectedArtifacts": {
-    "file": "path/to/main/file.py",
-    "contains": [
-      {
-        "type": "class",
-        "name": "ClassName",
-        "inherits": "BaseClass"  // optional
-      },
-      {
-        "type": "function",
-        "name": "function_name",
-        "class": "ClassName",     // optional - if method
-        "args": [
-          {"name": "param1", "type": "str"},
-          {"name": "param2", "type": "int"}
-        ],
-        "returns": "ReturnType"
-      }
-    ]
-  },
-  "validationCommand": ["pytest", "tests/test_file.py", "-v"]
-}
+MANIFEST SCHEMA (from maid-runner v1.2+):
+The following is the authoritative JSON Schema retrieved from 'maid schema':
+
+${maid_schema}
+
+IMPORTANT: This is the official schema from maid-runner. Use it as the authoritative reference for manifest structure.
 
 EXAMPLES FROM MAID AGENTS CODEBASE:
 

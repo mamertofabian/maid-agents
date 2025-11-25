@@ -65,8 +65,14 @@ def test_template_manager_render_for_agent_use_split_false_backward_compatible()
     template_manager = TemplateManager()
 
     try:
+        # Provide minimal schema for testing
+        test_schema = '{"type": "object", "properties": {"goal": {"type": "string"}}}'
         result = template_manager.render_for_agent(
-            "manifest_creation", use_split=False, goal="Test goal", task_number="001"
+            "manifest_creation",
+            use_split=False,
+            goal="Test goal",
+            task_number="001",
+            maid_schema=test_schema,
         )
         assert isinstance(result, dict)
         assert "system_prompt" in result

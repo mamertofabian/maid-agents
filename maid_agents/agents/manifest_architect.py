@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 from typing import Optional
 
 from maid_agents.agents.base_agent import BaseAgent
@@ -75,6 +76,52 @@ class ManifestArchitect(BaseAgent):
 
     # ==================== Core Generation Methods ====================
 
+    def _get_maid_schema(self) -> str:
+        """Retrieve the latest MAID manifest schema from maid-runner.
+
+        Returns:
+            JSON schema as a formatted string
+
+        Raises:
+            RuntimeError: If schema retrieval fails
+        """
+        try:
+            self.logger.debug("Retrieving MAID schema from 'maid schema' command...")
+            result = subprocess.run(
+                ["maid", "schema"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+
+            # Validate that we got valid JSON
+            schema = result.stdout.strip()
+            json.loads(schema)  # Validate JSON
+
+            self.logger.debug("Successfully retrieved MAID schema")
+            return schema
+
+        except subprocess.TimeoutExpired:
+            error_msg = "Timeout while retrieving MAID schema (>10s)"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to retrieve MAID schema: {e.stderr}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except json.JSONDecodeError as e:
+            error_msg = f"Invalid JSON schema from maid command: {e}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except FileNotFoundError:
+            error_msg = (
+                "maid command not found. Please ensure maid-runner is installed "
+                "and available in PATH."
+            )
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
     def _generate_manifest_with_claude(
         self, goal: str, task_number: int, previous_errors: Optional[str] = None
     ):
@@ -88,12 +135,28 @@ class ManifestArchitect(BaseAgent):
         Returns:
             ClaudeResponse object with generation result
         """
+        # Get the latest MAID schema
+        try:
+            maid_schema = self._get_maid_schema()
+        except RuntimeError as e:
+            # Return error if schema retrieval fails
+            from maid_agents.claude.cli_wrapper import ClaudeResponse
+
+            return ClaudeResponse(
+                success=False,
+                response="",
+                error=f"Failed to retrieve MAID schema: {str(e)}",
+            )
+
         # Get split prompts (system + user)
         template_manager = get_template_manager()
         manifests_dir = os.path.abspath("manifests")
 
         prompts = template_manager.render_for_agent(
-            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
+            "manifest_creation",
+            goal=goal,
+            task_number=f"{task_number:03d}",
+            maid_schema=maid_schema,
         )
 
         # Add previous errors context if provided
@@ -128,9 +191,8 @@ Requirements:
 - Use a descriptive slug (lowercase, hyphens) between the task number and extension
 - Write the complete JSON manifest using your file editing capabilities
 - Do not just show the JSON - actually write the file
-- Ensure the JSON is valid and matches the MAID v1.2 spec
-- CRITICAL: Include a 'description' field at the manifest level
-- CRITICAL: Each artifact must have a 'description' property
+- Ensure the JSON is valid and matches the MAID schema provided
+- Follow all requirements from the JSON schema (required fields, structure, etc.)
 """
         )
 

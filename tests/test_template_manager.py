@@ -55,7 +55,14 @@ def test_load_template_empty_name():
 def test_render_template_with_variables():
     """Test rendering template with variable substitution."""
     manager = TemplateManager()
-    result = manager.render("manifest_creation", goal="Test goal", task_number="001")
+    # Provide minimal schema for testing
+    test_schema = '{"type": "object", "properties": {"goal": {"type": "string"}}}'
+    result = manager.render(
+        "manifest_creation",
+        goal="Test goal",
+        task_number="001",
+        maid_schema=test_schema,
+    )
     assert isinstance(result, str)
     assert len(result) > 0
     assert "Test goal" in result
@@ -152,7 +159,14 @@ def test_get_template_manager_singleton():
 
 def test_render_template_convenience_function():
     """Test convenience render_template function."""
-    result = render_template("manifest_creation", goal="Test goal", task_number="042")
+    # Provide minimal schema for testing
+    test_schema = '{"type": "object", "properties": {"goal": {"type": "string"}}}'
+    result = render_template(
+        "manifest_creation",
+        goal="Test goal",
+        task_number="042",
+        maid_schema=test_schema,
+    )
     assert isinstance(result, str)
     assert "Test goal" in result
     assert "042" in result
