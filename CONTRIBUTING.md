@@ -16,7 +16,7 @@ MAID Agents is a Claude Code automation layer for the MAID (Manifest-driven AI D
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_ORG/maid-agents.git
+git clone https://github.com/mamertofabian/maid-agents.git
 cd maid-agents
 
 # Install package in editable mode
@@ -35,7 +35,7 @@ uv run python -m pytest tests/ -v
 
 If you find a bug:
 
-1. Check if it's already reported in [Issues](https://github.com/YOUR_ORG/maid-agents/issues)
+1. Check if it's already reported in [Issues](https://github.com/mamertofabian/maid-agents/issues)
 2. If not, open a new issue with:
    - Clear description of the problem
    - Steps to reproduce

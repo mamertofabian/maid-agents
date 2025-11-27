@@ -47,9 +47,6 @@ build-backend = "setuptools.build_meta"
 include = ["maid_agents*"]
 exclude = ["tests*", "manifests*"]
 
-[tool.uv.sources]
-maid-runner = { path = "../maid-runner", editable = true }
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = [
