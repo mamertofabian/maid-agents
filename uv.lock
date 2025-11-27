@@ -122,7 +122,7 @@ dev = [
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
     { name = "click", specifier = ">=8.0.0" },
-    { name = "maid-runner", editable = "../maid-runner" },
+    { name = "maid-runner", specifier = ">=0.1.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
@@ -135,22 +135,13 @@ dev = [{ name = "black", specifier = ">=25.11.0" }]
 [[package]]
 name = "maid-runner"
 version = "0.1.0"
-source = { editable = "../maid-runner" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
-    { name = "pytest" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "jsonschema", specifier = ">=4.25.1" },
-    { name = "pytest", specifier = ">=8.4.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "black", specifier = ">=25.1.0" },
-    { name = "ruff", specifier = ">=0.13.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/86/73/ac9cc539379d7bcfc20ad72322c4c42c952fc589d167683c6eb8cc72b9b4/maid_runner-0.1.0.tar.gz", hash = "sha256:cce154dc0370d6cd5572b96a3fe59e92db3645fdc72e16ea2c0fcba112033aa6", size = 158204 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/a6/82f71060e6f8f5fc80874e4e7df41def7a5ddc03cb43ff5c3986fa811ead/maid_runner-0.1.0-py3-none-any.whl", hash = "sha256:3e08d2d8ee676586c709ce2db05fd98c0dd0cf469cb605d5bad9ba3d89cbdf1d", size = 74631 },
 ]
 
 [[package]]
