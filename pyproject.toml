@@ -47,6 +47,14 @@ build-backend = "setuptools.build_meta"
 include = ["maid_agents*"]
 exclude = ["tests*", "manifests*"]
 
+[tool.setuptools.package-data]
+maid_agents = [
+    "config/templates/*.txt",
+    "config/templates/*.md",
+    "config/templates/system/*.txt",
+    "config/templates/user/*.txt",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = [
