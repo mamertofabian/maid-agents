@@ -21,13 +21,14 @@ class Refactorer(BaseAgent):
     FILE_NOT_FOUND_PREFIX = "# File not found: "
     DEFAULT_IMPROVEMENT_MESSAGE = "Code quality improvements applied"
 
-    def __init__(self, claude: ClaudeWrapper) -> None:
+    def __init__(self, claude: ClaudeWrapper, dry_run: bool = False) -> None:
         """Initialize refactorer agent.
 
         Args:
             claude: Claude wrapper for AI generation
+            dry_run: If True, skip expensive operations like subprocess calls
         """
-        super().__init__()
+        super().__init__(dry_run=dry_run)
         self.claude = claude
 
     def execute(self) -> dict:

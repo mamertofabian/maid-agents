@@ -112,8 +112,11 @@ class MAIDOrchestrator:
         self.claude = claude
 
         # Create agents with provided or default Claude wrapper
-        self.manifest_architect = manifest_architect or ManifestArchitect(claude)
-        self.test_designer = test_designer or TestDesigner(claude)
+        # Pass dry_run flag to agents so they can skip subprocess calls in test mode
+        self.manifest_architect = manifest_architect or ManifestArchitect(
+            claude, dry_run=dry_run
+        )
+        self.test_designer = test_designer or TestDesigner(claude, dry_run=dry_run)
         self.validation_runner = validation_runner or ValidationRunner()
 
     def _validate_safe_path(self, path: str) -> Path:
@@ -330,6 +333,11 @@ class MAIDOrchestrator:
         Returns:
             Dict with success status and error message
         """
+        # Skip subprocess call in dry_run mode
+        if self.dry_run:
+            self.logger.debug("Skipping behavioral validation (dry_run mode)")
+            return {"success": True, "error": None}
+
         import subprocess
 
         # Validate path before using it in subprocess
@@ -458,7 +466,7 @@ class MAIDOrchestrator:
             with LogContext("Step 2: Generating implementation code", style="info"):
                 from maid_agents.agents.developer import Developer
 
-                developer = Developer(self.claude)
+                developer = Developer(self.claude, dry_run=self.dry_run)
                 log_agent_action(
                     "Developer",
                     "generating code",
@@ -721,7 +729,7 @@ class MAIDOrchestrator:
 
         # Lazy-initialize refiner if needed
         if not hasattr(self, "refiner"):
-            self.refiner = Refiner(self.claude)
+            self.refiner = Refiner(self.claude, dry_run=self.dry_run)
 
         iteration = 0
         last_error = ""
@@ -852,7 +860,7 @@ class MAIDOrchestrator:
 
         # Lazy-initialize refactorer if needed
         if not hasattr(self, "refactorer"):
-            self.refactorer = Refactorer(self.claude)
+            self.refactorer = Refactorer(self.claude, dry_run=self.dry_run)
 
         iteration = 0
         last_error = ""

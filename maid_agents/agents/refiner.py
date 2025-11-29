@@ -12,13 +12,14 @@ from maid_agents.config.template_manager import get_template_manager
 class Refiner(BaseAgent):
     """Agent that refines manifests and tests based on user refinement goals."""
 
-    def __init__(self, claude: ClaudeWrapper):
+    def __init__(self, claude: ClaudeWrapper, dry_run: bool = False):
         """Initialize refiner agent.
 
         Args:
             claude: Claude wrapper for AI generation
+            dry_run: If True, skip expensive operations like subprocess calls
         """
-        super().__init__()
+        super().__init__(dry_run=dry_run)
         self.claude = claude
 
     def execute(self) -> dict:

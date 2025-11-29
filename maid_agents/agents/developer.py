@@ -21,13 +21,14 @@ class Developer(BaseAgent):
     _MANIFEST_PATH_TEMPLATE = "manifests/{}.manifest.json"
     _MAX_GOAL_LENGTH = 30
 
-    def __init__(self, claude: ClaudeWrapper) -> None:
+    def __init__(self, claude: ClaudeWrapper, dry_run: bool = False) -> None:
         """Initialize developer agent.
 
         Args:
             claude: Claude wrapper instance for AI-powered code generation.
+            dry_run: If True, skip expensive operations like subprocess calls
         """
-        super().__init__()
+        super().__init__(dry_run=dry_run)
         self.claude = claude
 
     def execute(self) -> dict:

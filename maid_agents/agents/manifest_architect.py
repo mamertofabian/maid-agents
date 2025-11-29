@@ -20,13 +20,14 @@ class ManifestArchitect(BaseAgent):
     _MIN_WORD_BOUNDARY = 30
     _GOAL_PREVIEW_LENGTH = 60
 
-    def __init__(self, claude: ClaudeWrapper):
+    def __init__(self, claude: ClaudeWrapper, dry_run: bool = False):
         """Initialize manifest architect.
 
         Args:
             claude: Claude wrapper for AI generation
+            dry_run: If True, skip expensive operations like subprocess calls
         """
-        super().__init__()
+        super().__init__(dry_run=dry_run)
         self.claude = claude
 
     def execute(self) -> dict:
@@ -227,6 +228,11 @@ Requirements:
         Returns:
             dict: Parsed JSON schema on success, empty dict on failure
         """
+        # Skip subprocess call in dry_run mode
+        if self.dry_run:
+            self.logger.debug("Skipping schema retrieval (dry_run mode)")
+            return {}
+
         try:
             result = subprocess.run(
                 ["maid", "schema"],
