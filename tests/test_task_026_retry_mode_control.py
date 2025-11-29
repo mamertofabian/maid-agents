@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from maid_agents.core.orchestrator import MAIDOrchestrator, RetryMode
 from maid_agents.claude.cli_wrapper import ClaudeWrapper
 
@@ -132,29 +132,144 @@ class TestImplementationLoopRetryMode:
         default = sig.parameters["retry_mode"].default
         assert default == RetryMode.DISABLED
 
-    def test_run_implementation_loop_with_disabled_retry_mode(self):
-        """Test run_implementation_loop can be called with DISABLED retry_mode."""
-        # Just verify the method signature accepts the parameter
-        # Full integration tests are in test_task_024_backup_integration.py
-        import inspect
+    @patch("maid_agents.agents.developer.Developer")
+    @patch("maid_agents.core.orchestrator.MAIDOrchestrator._validate_safe_path")
+    @patch("maid_agents.core.validation_runner.ValidationRunner")
+    def test_run_implementation_loop_with_disabled_retry_mode(
+        self,
+        mock_validation_runner_class,
+        mock_validate_path,
+        mock_developer_class,
+        tmp_path,
+    ):
+        """Test run_implementation_loop with DISABLED retry mode stops after first failure."""
+        from maid_agents.core.validation_runner import ValidationResult
+        import json
 
-        sig = inspect.signature(MAIDOrchestrator.run_implementation_loop)
-        assert "retry_mode" in sig.parameters
+        # Setup manifest
+        manifest_path = tmp_path / "test.manifest.json"
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# Original")
 
-        # Verify we can pass DISABLED mode
-        assert RetryMode.DISABLED in RetryMode
+        manifest_data = {
+            "goal": "Test",
+            "taskType": "edit",
+            "editableFiles": [str(test_file)],
+            "readonlyFiles": [],
+            "expectedArtifacts": {"file": str(test_file), "contains": []},
+            "validationCommand": ["pytest", str(test_file)],
+        }
+        manifest_path.write_text(json.dumps(manifest_data))
 
-    def test_run_implementation_loop_with_auto_retry_mode(self):
-        """Test run_implementation_loop can be called with AUTO retry_mode."""
-        # Just verify the method signature accepts the parameter
-        # Full integration tests are in test_task_024_backup_integration.py
-        import inspect
+        # Mock path validation
+        mock_validate_path.side_effect = lambda p: Path(p)
 
-        sig = inspect.signature(MAIDOrchestrator.run_implementation_loop)
-        assert "retry_mode" in sig.parameters
+        # Mock validation runner to always fail
+        mock_runner = MagicMock()
+        mock_validation_runner_class.return_value = mock_runner
+        mock_runner.run_behavioral_tests.return_value = ValidationResult(
+            success=False, stdout="", stderr="Test failed", errors=["Error"]
+        )
 
-        # Verify we can pass AUTO mode
-        assert RetryMode.AUTO in RetryMode
+        # Mock developer
+        mock_developer = MagicMock()
+        mock_developer_class.return_value = mock_developer
+        mock_developer.implement.return_value = {
+            "success": True,
+            "files_modified": [str(test_file)],
+            "code": "# Modified",
+            "error": None,
+        }
+
+        # Create orchestrator and call with DISABLED mode
+        orchestrator = MAIDOrchestrator(
+            claude=ClaudeWrapper(mock_mode=True),
+            validation_runner=mock_runner,
+            dry_run=True,
+        )
+        result = orchestrator.run_implementation_loop(
+            str(manifest_path), max_iterations=5, retry_mode=RetryMode.DISABLED
+        )
+
+        # Should stop after 1 iteration (no retries with DISABLED)
+        assert result["iterations"] == 1
+        assert result["success"] is False
+
+    @patch("maid_agents.agents.developer.Developer")
+    @patch("maid_agents.core.orchestrator.MAIDOrchestrator._validate_safe_path")
+    @patch("maid_agents.core.validation_runner.ValidationRunner")
+    def test_run_implementation_loop_with_auto_retry_mode(
+        self,
+        mock_validation_runner_class,
+        mock_validate_path,
+        mock_developer_class,
+        tmp_path,
+    ):
+        """Test run_implementation_loop with AUTO retry mode retries on failure."""
+        from maid_agents.core.validation_runner import ValidationResult
+        import json
+
+        # Setup manifest
+        manifest_path = tmp_path / "test.manifest.json"
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# Original")
+
+        manifest_data = {
+            "goal": "Test",
+            "taskType": "edit",
+            "editableFiles": [str(test_file)],
+            "readonlyFiles": [],
+            "expectedArtifacts": {"file": str(test_file), "contains": []},
+            "validationCommand": ["pytest", str(test_file)],
+        }
+        manifest_path.write_text(json.dumps(manifest_data))
+
+        # Mock path validation
+        mock_validate_path.side_effect = lambda p: Path(p)
+
+        # Mock validation runner - fail twice, then succeed
+        mock_runner = MagicMock()
+        mock_validation_runner_class.return_value = mock_runner
+        mock_runner.run_behavioral_tests.side_effect = [
+            ValidationResult(
+                success=False, stdout="", stderr="Test failed", errors=["Error"]
+            ),
+            ValidationResult(
+                success=False, stdout="", stderr="Test failed", errors=["Error"]
+            ),
+            ValidationResult(success=True, stdout="Pass", stderr="", errors=[]),
+        ]
+        mock_runner.validate_manifest.return_value = ValidationResult(
+            success=True, stdout="Valid", stderr="", errors=[]
+        )
+
+        # Mock developer
+        mock_developer = MagicMock()
+        mock_developer_class.return_value = mock_developer
+        mock_developer.implement.return_value = {
+            "success": True,
+            "files_modified": [str(test_file)],
+            "code": "# Modified",
+            "error": None,
+        }
+
+        # Create orchestrator and call with AUTO mode
+        orchestrator = MAIDOrchestrator(
+            claude=ClaudeWrapper(mock_mode=True),
+            validation_runner=mock_runner,
+            dry_run=True,
+        )
+        result = orchestrator.run_implementation_loop(
+            str(manifest_path), max_iterations=5, retry_mode=RetryMode.AUTO
+        )
+
+        # Should retry and eventually succeed
+        # Note: It completes in 2 iterations, not 3, because:
+        # - Initial test (before iteration 1) fails
+        # - Iteration 1: generate code, test fails
+        # - Iteration 2: generate code, test passes
+        assert result["iterations"] == 2
+        assert result["success"] is True
 
 
 class TestRefactoringLoopRetryMode:
@@ -178,29 +293,131 @@ class TestRefactoringLoopRetryMode:
         default = sig.parameters["retry_mode"].default
         assert default == RetryMode.DISABLED
 
-    def test_run_refactoring_loop_with_disabled_retry_mode(self):
-        """Test run_refactoring_loop can be called with DISABLED retry_mode."""
-        # Just verify the method signature accepts the parameter
-        # Full integration tests are in test_task_024_backup_integration.py
-        import inspect
+    @patch("maid_agents.agents.refactorer.Refactorer")
+    @patch("maid_agents.core.orchestrator.MAIDOrchestrator._validate_safe_path")
+    @patch("maid_agents.core.validation_runner.ValidationRunner")
+    def test_run_refactoring_loop_with_disabled_retry_mode(
+        self,
+        mock_validation_runner_class,
+        mock_validate_path,
+        mock_refactorer_class,
+        tmp_path,
+    ):
+        """Test run_refactoring_loop with DISABLED retry mode."""
+        from maid_agents.core.validation_runner import ValidationResult
+        import json
 
-        sig = inspect.signature(MAIDOrchestrator.run_refactoring_loop)
-        assert "retry_mode" in sig.parameters
+        # Setup manifest
+        manifest_path = tmp_path / "test.manifest.json"
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# Original")
 
-        # Verify we can pass DISABLED mode
-        assert RetryMode.DISABLED in RetryMode
+        manifest_data = {
+            "goal": "Test",
+            "taskType": "edit",
+            "editableFiles": [str(test_file)],
+            "readonlyFiles": [],
+            "expectedArtifacts": {"file": str(test_file), "contains": []},
+            "validationCommand": ["pytest", str(test_file)],
+        }
+        manifest_path.write_text(json.dumps(manifest_data))
 
-    def test_run_refactoring_loop_with_auto_retry_mode(self):
-        """Test run_refactoring_loop can be called with AUTO retry_mode."""
-        # Just verify the method signature accepts the parameter
-        # Full integration tests are in test_task_024_backup_integration.py
-        import inspect
+        # Mock path validation
+        mock_validate_path.side_effect = lambda p: Path(p)
 
-        sig = inspect.signature(MAIDOrchestrator.run_refactoring_loop)
-        assert "retry_mode" in sig.parameters
+        # Mock validation runner - tests pass
+        mock_runner = MagicMock()
+        mock_validation_runner_class.return_value = mock_runner
+        mock_runner.run_behavioral_tests.return_value = ValidationResult(
+            success=True, stdout="Pass", stderr="", errors=[]
+        )
 
-        # Verify we can pass AUTO mode
-        assert RetryMode.AUTO in RetryMode
+        # Mock refactorer
+        mock_refactorer = MagicMock()
+        mock_refactorer_class.return_value = mock_refactorer
+        mock_refactorer.refactor.return_value = {
+            "success": True,
+            "files_written": [str(test_file)],
+            "improvements": ["Improved code"],
+            "error": None,
+        }
+
+        # Create orchestrator and call with DISABLED mode
+        orchestrator = MAIDOrchestrator(
+            claude=ClaudeWrapper(mock_mode=True),
+            validation_runner=mock_runner,
+            dry_run=True,
+        )
+        result = orchestrator.run_refactoring_loop(
+            str(manifest_path), max_iterations=5, retry_mode=RetryMode.DISABLED
+        )
+
+        # Should complete in 1 iteration
+        assert result["iterations"] == 1
+        assert result["success"] is True
+
+    @patch("maid_agents.agents.refactorer.Refactorer")
+    @patch("maid_agents.core.orchestrator.MAIDOrchestrator._validate_safe_path")
+    @patch("maid_agents.core.validation_runner.ValidationRunner")
+    def test_run_refactoring_loop_with_auto_retry_mode(
+        self,
+        mock_validation_runner_class,
+        mock_validate_path,
+        mock_refactorer_class,
+        tmp_path,
+    ):
+        """Test run_refactoring_loop with AUTO retry mode."""
+        from maid_agents.core.validation_runner import ValidationResult
+        import json
+
+        # Setup manifest
+        manifest_path = tmp_path / "test.manifest.json"
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# Original")
+
+        manifest_data = {
+            "goal": "Test",
+            "taskType": "edit",
+            "editableFiles": [str(test_file)],
+            "readonlyFiles": [],
+            "expectedArtifacts": {"file": str(test_file), "contains": []},
+            "validationCommand": ["pytest", str(test_file)],
+        }
+        manifest_path.write_text(json.dumps(manifest_data))
+
+        # Mock path validation
+        mock_validate_path.side_effect = lambda p: Path(p)
+
+        # Mock validation runner - tests pass
+        mock_runner = MagicMock()
+        mock_validation_runner_class.return_value = mock_runner
+        mock_runner.run_behavioral_tests.return_value = ValidationResult(
+            success=True, stdout="Pass", stderr="", errors=[]
+        )
+
+        # Mock refactorer
+        mock_refactorer = MagicMock()
+        mock_refactorer_class.return_value = mock_refactorer
+        mock_refactorer.refactor.return_value = {
+            "success": True,
+            "files_written": [str(test_file)],
+            "improvements": ["Improved code"],
+            "error": None,
+        }
+
+        # Create orchestrator and call with AUTO mode
+        orchestrator = MAIDOrchestrator(
+            claude=ClaudeWrapper(mock_mode=True),
+            validation_runner=mock_runner,
+            dry_run=True,
+        )
+        result = orchestrator.run_refactoring_loop(
+            str(manifest_path), max_iterations=5, retry_mode=RetryMode.AUTO
+        )
+
+        # Should complete successfully
+        assert result["iterations"] == 1
+        assert result["success"] is True
 
 
 class TestCLIRetryModeIntegration:

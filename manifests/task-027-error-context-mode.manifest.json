@@ -1,0 +1,57 @@
+{
+  "goal": "Add error context mode control (INCREMENTAL, FRESH_START) to control file restoration behavior on retries, with INCREMENTAL as default for AUTO/CONFIRM retry modes",
+  "taskType": "edit",
+  "creatableFiles": [],
+  "editableFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/cli/main.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_027_error_context_mode.py",
+    "maid_agents/core/file_backup.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "ErrorContextMode"
+      },
+      {
+        "type": "function",
+        "name": "_should_restore_files",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "iteration", "type": "int"},
+          {"name": "error_context_mode", "type": "ErrorContextMode"}
+        ],
+        "returns": "bool"
+      },
+      {
+        "type": "function",
+        "name": "run_implementation_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"},
+          {"name": "error_context_mode", "type": "ErrorContextMode"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_refactoring_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"},
+          {"name": "error_context_mode", "type": "ErrorContextMode"}
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["python", "-m", "pytest", "tests/test_task_027_error_context_mode.py", "-v"]
+}

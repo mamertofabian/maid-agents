@@ -52,6 +52,13 @@ class RetryMode(Enum):
     CONFIRM = "confirm"  # Ask user before each retry
 
 
+class ErrorContextMode(Enum):
+    """Error context passing modes for retry iterations."""
+
+    INCREMENTAL = "incremental"  # Build on previous attempt (default)
+    FRESH_START = "fresh-start"  # Restore to original state each retry
+
+
 @dataclass
 class WorkflowResult:
     """Result of workflow execution."""
@@ -390,6 +397,7 @@ class MAIDOrchestrator:
         manifest_path: str,
         max_iterations: int = 20,
         retry_mode: RetryMode = RetryMode.DISABLED,
+        error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
     ) -> dict:
         """Execute implementation loop: code generation until tests pass.
 
@@ -397,6 +405,7 @@ class MAIDOrchestrator:
             manifest_path: Path to manifest file
             max_iterations: Maximum implementation iterations
             retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
+            error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
 
         Returns:
             Dict with implementation loop results
@@ -429,10 +438,12 @@ class MAIDOrchestrator:
         while iteration < max_iterations:
             iteration += 1
 
-            # Restore files before retry (skip first iteration)
-            if iteration > 1 and backup_manager:
+            # Restore files based on error context mode
+            if backup_manager and self._should_restore_files(
+                iteration, error_context_mode
+            ):
                 logger.info(
-                    f"Restoring files to original state before retry {iteration}"
+                    f"Restoring files to original state (error_context_mode={error_context_mode.value})"
                 )
                 backup_manager.restore_files()
 
@@ -664,6 +675,29 @@ class MAIDOrchestrator:
             # Auto retry until max iterations
             return True
 
+    def _should_restore_files(
+        self, iteration: int, error_context_mode: ErrorContextMode
+    ) -> bool:
+        """Determine if files should be restored based on error context mode.
+
+        Args:
+            iteration: Current iteration number
+            error_context_mode: Error context mode
+
+        Returns:
+            True if should restore files to original state, False otherwise
+        """
+        # Never restore on first iteration (nothing to restore from)
+        if iteration == 1:
+            return False
+
+        # INCREMENTAL mode: Build on previous attempt (don't restore)
+        if error_context_mode == ErrorContextMode.INCREMENTAL:
+            return False
+
+        # FRESH_START mode: Restore to original state each retry
+        return True
+
     def run_refinement_loop(
         self, manifest_path: str, refinement_goal: str, max_iterations: int = 5
     ) -> dict:
@@ -786,6 +820,7 @@ class MAIDOrchestrator:
         manifest_path: str,
         max_iterations: int = 10,
         retry_mode: RetryMode = RetryMode.DISABLED,
+        error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
     ) -> dict:
         """Execute refactoring loop: refactor code with validation and testing.
 
@@ -793,6 +828,7 @@ class MAIDOrchestrator:
             manifest_path: Path to manifest file to refactor
             max_iterations: Maximum refactoring iterations
             retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
+            error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
 
         Returns:
             Dict with refactoring loop results
@@ -820,10 +856,12 @@ class MAIDOrchestrator:
         while iteration < max_iterations:
             iteration += 1
 
-            # Restore files before retry (skip first iteration)
-            if iteration > 1 and backup_manager:
+            # Restore files based on error context mode
+            if backup_manager and self._should_restore_files(
+                iteration, error_context_mode
+            ):
                 logger.info(
-                    f"Restoring files to original state before retry {iteration}"
+                    f"Restoring files to original state (error_context_mode={error_context_mode.value})"
                 )
                 backup_manager.restore_files()
 

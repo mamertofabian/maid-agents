@@ -162,6 +162,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         action="store_true",
         help="Ask for confirmation before each retry iteration",
     )
+    implement_parser.add_argument(
+        "--fresh-start",
+        action="store_true",
+        help="Restore files to original state on each retry (default: build on previous attempt)",
+    )
 
     # Refactor subcommand
     refactor_parser = subparsers.add_parser(
@@ -184,6 +189,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         "--confirm-retry",
         action="store_true",
         help="Ask for confirmation before each retry iteration",
+    )
+    refactor_parser.add_argument(
+        "--fresh-start",
+        action="store_true",
+        help="Restore files to original state on each retry (default: build on previous attempt)",
     )
 
     # Refine subcommand
@@ -350,8 +360,8 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
     elif args.command == "implement":
-        # Import RetryMode here to avoid circular imports
-        from maid_agents.core.orchestrator import RetryMode
+        # Import RetryMode and ErrorContextMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode, ErrorContextMode
 
         # Use config default if --max-iterations not specified
         max_iterations = (
@@ -364,7 +374,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         if args.no_retry and args.confirm_retry:
             _print_error(
                 "Cannot use both --no-retry and --confirm-retry",
-                suggestion="Choose one retry mode or use neither for automatic retries",
+                suggestion="Choose one retry mode or use neither for default behavior",
             )
             sys.exit(1)
         elif args.no_retry:
@@ -373,6 +383,13 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             retry_mode = RetryMode.CONFIRM
         else:
             retry_mode = RetryMode.DISABLED  # Default
+
+        # Determine error context mode from flags
+        error_context_mode = (
+            ErrorContextMode.FRESH_START
+            if args.fresh_start
+            else ErrorContextMode.INCREMENTAL
+        )
 
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
@@ -383,7 +400,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
         if not args.quiet:
-            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}"
+            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}, [dim]Error context:[/dim] {error_context_mode.value}"
             console.print(
                 Panel(
                     f"[bold]Implementing code from manifest[/bold]\n[dim]Manifest:[/dim] {manifest_path}\n{retry_info}",
@@ -403,6 +420,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 manifest_path=manifest_path,
                 max_iterations=max_iterations,
                 retry_mode=retry_mode,
+                error_context_mode=error_context_mode,
             )
 
         if result["success"]:
@@ -422,8 +440,8 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
     elif args.command == "refactor":
-        # Import RetryMode here to avoid circular imports
-        from maid_agents.core.orchestrator import RetryMode
+        # Import RetryMode and ErrorContextMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode, ErrorContextMode
 
         # Use config default if --max-iterations not specified
         max_iterations = (
@@ -446,6 +464,13 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         else:
             retry_mode = RetryMode.DISABLED  # Default
 
+        # Determine error context mode from flags
+        error_context_mode = (
+            ErrorContextMode.FRESH_START
+            if args.fresh_start
+            else ErrorContextMode.INCREMENTAL
+        )
+
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
             _print_error(
@@ -455,7 +480,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
         if not args.quiet:
-            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}"
+            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}, [dim]Error context:[/dim] {error_context_mode.value}"
             console.print(
                 Panel(
                     f"[bold]Refactoring code for quality improvements[/bold]\n[dim]Manifest:[/dim] {manifest_path}\n{retry_info}",
@@ -475,6 +500,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 manifest_path=manifest_path,
                 max_iterations=max_iterations,
                 retry_mode=retry_mode,
+                error_context_mode=error_context_mode,
             )
 
         if result["success"]:
