@@ -2,22 +2,22 @@
   "goal": "Create Refiner agent that accepts refinement goals, updates manifest and test files, and validates changes through an orchestrated refinement loop",
   "taskType": "edit",
   "creatableFiles": [
-    "maid_agents/maid_agents/agents/refiner.py"
+    "maid_agents/agents/refiner.py"
   ],
   "editableFiles": [
-    "maid_agents/maid_agents/core/orchestrator.py",
-    "maid_agents/maid_agents/agents/__init__.py",
-    "maid_agents/maid_agents/cli/main.py"
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/agents/__init__.py",
+    "maid_agents/cli/main.py"
   ],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_017_refiner_agent.py",
-    "maid_agents/maid_agents/agents/base_agent.py",
-    "maid_agents/maid_agents/agents/refactorer.py",
-    "maid_agents/maid_agents/core/validation_runner.py",
-    "maid_agents/maid_agents/claude/cli_wrapper.py"
+    "tests/test_task_017_refiner_agent.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/core/validation_runner.py",
+    "maid_agents/claude/cli_wrapper.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/agents/refiner.py",
+    "file": "maid_agents/agents/refiner.py",
     "contains": [
       {
         "type": "class",
@@ -43,5 +43,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_017_refiner_agent.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_017_refiner_agent.py", "-v"]
 }

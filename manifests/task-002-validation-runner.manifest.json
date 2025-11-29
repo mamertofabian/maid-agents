@@ -1,12 +1,12 @@
 {
   "goal": "Create ValidationRunner class that wraps maid-runner CLI calls for manifest validation and test execution",
   "taskType": "create",
-  "creatableFiles": ["maid_agents/maid_agents/core/validation_runner.py"],
+  "creatableFiles": ["maid_agents/core/validation_runner.py"],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_002_validation_runner.py"
+    "tests/test_task_002_validation_runner.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/core/validation_runner.py",
+    "file": "maid_agents/core/validation_runner.py",
     "contains": [
       {
         "type": "class",
@@ -46,5 +46,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_002_validation_runner.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_002_validation_runner.py", "-v"]
 }

@@ -1,12 +1,12 @@
 {
   "goal": "Create ClaudeWrapper class that invokes Claude Code headless CLI and parses responses",
   "taskType": "create",
-  "creatableFiles": ["maid_agents/maid_agents/claude/cli_wrapper.py"],
+  "creatableFiles": ["maid_agents/claude/cli_wrapper.py"],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_004_claude_cli_wrapper.py"
+    "tests/test_task_004_claude_cli_wrapper.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/claude/cli_wrapper.py",
+    "file": "maid_agents/claude/cli_wrapper.py",
     "contains": [
       {
         "type": "class",
@@ -54,5 +54,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_004_claude_cli_wrapper.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_004_claude_cli_wrapper.py", "-v"]
 }

@@ -16,7 +16,7 @@ class Refactorer(BaseAgent):
     and tests continue to pass.
     """
 
-    DUPLICATE_PREFIX = "maid_agents/maid_agents/"
+    DUPLICATE_PREFIX = "maid-agents/maid_agents/"
     NORMALIZED_PREFIX = "maid_agents/"
     FILE_NOT_FOUND_PREFIX = "# File not found: "
     DEFAULT_IMPROVEMENT_MESSAGE = "Code quality improvements applied"

@@ -1,14 +1,14 @@
 {
   "goal": "Implement implementation loop orchestration in MAIDOrchestrator that iterates code generation until tests pass",
   "taskType": "edit",
-  "editableFiles": ["maid_agents/maid_agents/core/orchestrator.py"],
+  "editableFiles": ["maid_agents/core/orchestrator.py"],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_011_implementation_loop.py",
-    "maid_agents/maid_agents/agents/developer.py",
-    "maid_agents/maid_agents/core/validation_runner.py"
+    "tests/test_task_011_implementation_loop.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/core/validation_runner.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/core/orchestrator.py",
+    "file": "maid_agents/core/orchestrator.py",
     "contains": [
       {
         "type": "function",
@@ -28,5 +28,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_011_implementation_loop.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_011_implementation_loop.py", "-v"]
 }

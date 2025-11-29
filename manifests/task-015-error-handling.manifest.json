@@ -1,10 +1,10 @@
 {
   "goal": "Add robust error handling and recovery to core orchestrator methods",
   "taskType": "edit",
-  "editableFiles": ["maid_agents/maid_agents/core/orchestrator.py"],
-  "readonlyFiles": ["maid_agents/tests/test_task_015_error_handling.py"],
+  "editableFiles": ["maid_agents/core/orchestrator.py"],
+  "readonlyFiles": ["tests/test_task_015_error_handling.py"],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/core/orchestrator.py",
+    "file": "maid_agents/core/orchestrator.py",
     "contains": [
       {
         "type": "function",
@@ -28,5 +28,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_015_error_handling.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_015_error_handling.py", "-v"]
 }

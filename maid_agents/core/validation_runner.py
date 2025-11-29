@@ -170,12 +170,12 @@ class ValidationRunner:
         Returns:
             Normalized path with duplicate prefix removed
         """
-        # Remove duplicate maid_agents/maid_agents/ prefix
-        if path.startswith("maid_agents/maid_agents/"):
-            return path.replace("maid_agents/maid_agents/", "maid_agents/", 1)
-        # Also handle maid_agents/tests/ -> tests/ (test files are at root)
-        if path.startswith("maid_agents/tests/") and not Path(path).exists():
-            normalized = path.replace("maid_agents/tests/", "tests/", 1)
+        # Remove duplicate maid-agents/maid_agents/ prefix
+        if path.startswith("maid-agents/maid_agents/"):
+            return path.replace("maid-agents/maid_agents/", "maid_agents/", 1)
+        # Also handle maid-agents/tests/ -> tests/ (test files are at root)
+        if path.startswith("maid-agents/tests/") and not Path(path).exists():
+            normalized = path.replace("maid-agents/tests/", "tests/", 1)
             if Path(normalized).exists():
                 return normalized
         return path

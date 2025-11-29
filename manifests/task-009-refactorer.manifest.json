@@ -2,16 +2,16 @@
   "goal": "Create Refactorer agent class that improves code quality while maintaining manifest compliance using Claude Code",
   "taskType": "edit",
   "editableFiles": [
-    "maid_agents/maid_agents/agents/refactorer.py"
+    "maid_agents/agents/refactorer.py"
   ],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_009_refactorer.py",
-    "maid_agents/maid_agents/agents/base_agent.py",
-    "maid_agents/maid_agents/claude/cli_wrapper.py",
-    "maid_agents/maid_agents/core/validation_runner.py"
+    "tests/test_task_009_refactorer.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/core/validation_runner.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/agents/refactorer.py",
+    "file": "maid_agents/agents/refactorer.py",
     "contains": [
       {
         "type": "class",
@@ -43,7 +43,7 @@
   },
   "validationCommand": [
     "pytest",
-    "maid_agents/tests/test_task_009_refactorer.py",
+    "tests/test_task_009_refactorer.py",
     "-v"
   ]
 }

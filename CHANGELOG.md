@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-11-29
+
+### Fixed
+- Corrected manifest file paths after project rename from `maid_agents` to `maid-agents`
+  - Fixed duplicate prefix in `creatableFiles` and `editableFiles` (from `maid_agents/maid_agents/` to `maid_agents/`)
+  - Fixed test file paths in `readonlyFiles` and `validationCommand` (from `maid_agents/tests/` to `tests/`)
+- Updated path normalization in `Refactorer` and `ValidationRunner` to handle `maid-agents/` project directory prefix
+
+### Changed
+- Updated all 16 task manifests with corrected file paths
+- Updated documentation examples in `IMPLEMENTATION_SUMMARY.md` to reflect correct paths
+
 ## [0.1.0] - 2025-11-27
 
 ### Added
@@ -128,4 +140,5 @@ This is the first public release of MAID Agents, providing automated orchestrati
 - 19 prompt template files
 - Alpha release status
 
+[0.1.1]: https://github.com/mamertofabian/maid-agents/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mamertofabian/maid-agents/releases/tag/v0.1.0

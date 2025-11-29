@@ -1,15 +1,15 @@
 {
   "goal": "Create ManifestArchitect agent class that generates MAID manifests from high-level goals using Claude Code",
   "taskType": "edit",
-  "editableFiles": ["maid_agents/maid_agents/agents/manifest_architect.py"],
+  "editableFiles": ["maid_agents/agents/manifest_architect.py"],
   "readonlyFiles": [
-    "maid_agents/tests/test_task_006_manifest_architect.py",
-    "maid_agents/maid_agents/agents/base_agent.py",
-    "maid_agents/maid_agents/claude/cli_wrapper.py",
-    "maid_agents/maid_agents/core/validation_runner.py"
+    "tests/test_task_006_manifest_architect.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/core/validation_runner.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/maid_agents/agents/manifest_architect.py",
+    "file": "maid_agents/agents/manifest_architect.py",
     "contains": [
       {
         "type": "class",
@@ -41,5 +41,5 @@
       }
     ]
   },
-  "validationCommand": ["pytest", "maid_agents/tests/test_task_006_manifest_architect.py", "-v"]
+  "validationCommand": ["pytest", "tests/test_task_006_manifest_architect.py", "-v"]
 }

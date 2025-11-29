@@ -135,11 +135,11 @@ ls maid_agents/manifests/*.json | wc -l
 # Result: 16 ✅
 
 # Count individual test files (should be 16)
-ls maid_agents/tests/test_task_*.py | wc -l
+ls maid-agents/tests/test_task_*.py | wc -l
 # Result: 16 ✅
 
 # Run all tests
-PYTHONPATH=maid_agents uv run pytest maid_agents/tests/ -v
+PYTHONPATH=maid_agents uv run pytest maid-agents/tests/ -v
 # Result: 60 passed, 1 warning in 0.35s ✅
 ```
 
@@ -169,7 +169,7 @@ uv pip install -e .
 
 ### Run Tests
 ```bash
-PYTHONPATH=maid_agents uv run pytest maid_agents/tests/ -v
+PYTHONPATH=maid_agents uv run pytest maid-agents/tests/ -v
 ```
 
 ### CLI Commands (Skeleton Ready)
