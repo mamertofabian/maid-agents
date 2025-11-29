@@ -1,0 +1,60 @@
+{
+  "version": "1",
+  "goal": "Create a Plan Reviewer agent that validates and reviews the architectural soundness of manifests and behavioral tests after the planning phase",
+  "description": "Implement an intermediate agent (not part of main MAID phases) that reviews manifests and behavioral tests for architectural quality. The agent should check goal clarity, test coverage, artifact design, and separation of concerns. It should make improvements directly to the manifest and tests when architectural issues are found. Accessible via `ccmaid review-plan <manifest_file>` CLI command.",
+  "taskType": "create",
+  "creatableFiles": [
+    "maid_agents/agents/plan_reviewer.py",
+    "maid_agents/config/templates/system/plan_reviewer_system.txt",
+    "maid_agents/config/templates/user/plan_reviewer_user.txt"
+  ],
+  "editableFiles": [],
+  "readonlyFiles": [
+    "tests/test_task_032_plan_reviewer_agent.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/config/template_manager.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/agents/plan_reviewer.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "PlanReviewer"
+      },
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "PlanReviewer",
+        "args": [
+          {"name": "claude", "type": "ClaudeWrapper"},
+          {"name": "dry_run", "type": "bool", "default": "False"}
+        ],
+        "returns": {"type": "None"}
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "PlanReviewer",
+        "args": [],
+        "returns": {"type": "dict"}
+      },
+      {
+        "type": "function",
+        "name": "review_plan",
+        "class": "PlanReviewer",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "review_feedback", "type": "str", "default": "\"\""},
+          {"name": "instructions", "type": "str", "default": "\"\""}
+        ],
+        "returns": {"type": "dict"}
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_032_plan_reviewer_agent.py",
+    "-v"
+  ]
+}

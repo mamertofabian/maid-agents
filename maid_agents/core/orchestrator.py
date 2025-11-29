@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from maid_agents.agents.manifest_architect import ManifestArchitect
+from maid_agents.agents.plan_reviewer import PlanReviewer
 from maid_agents.agents.refiner import Refiner
 from maid_agents.agents.refactorer import Refactorer
 from maid_agents.agents.test_designer import TestDesigner
@@ -368,7 +369,7 @@ class MAIDOrchestrator:
         """
         # Skip subprocess call in dry_run mode
         if self.dry_run:
-            self.logger.debug("Skipping behavioral validation (dry_run mode)")
+            logger.debug("Skipping behavioral validation (dry_run mode)")
             return {"success": True, "error": None}
 
         import subprocess
@@ -889,6 +890,142 @@ class MAIDOrchestrator:
         return {
             "success": False,
             "iterations": iteration,
+            "error": error_msg,
+        }
+
+    def run_plan_review_loop(
+        self,
+        manifest_path: str,
+        instructions: str = "",
+        max_iterations: int = 5,
+    ) -> dict:
+        """Execute plan review loop: review manifest and tests for architectural soundness.
+
+        Args:
+            manifest_path: Path to manifest file to review
+            instructions: Optional additional instructions or context
+            max_iterations: Maximum review iterations
+
+        Returns:
+            Dict with plan review loop results including success, iterations, issues_found, improvements
+        """
+        log_phase_start("PLAN REVIEW")
+        logger.info(f"Reviewing plan: {manifest_path}")
+
+        # Lazy-initialize plan reviewer if needed
+        if not hasattr(self, "plan_reviewer"):
+            self.plan_reviewer = PlanReviewer(self.claude, dry_run=self.dry_run)
+
+        iteration = 0
+        last_feedback = ""
+        all_issues = []
+        all_improvements = []
+
+        while iteration < max_iterations:
+            iteration += 1
+            log_iteration(
+                iteration, max_iterations, "Reviewing plan for architectural quality"
+            )
+
+            # Step 1: Review plan
+            with LogContext(
+                "Step 1: Analyzing plan for architectural soundness", style="info"
+            ):
+                log_agent_action(
+                    "PlanReviewer",
+                    "reviewing manifest and tests",
+                    details=f"iteration {iteration}",
+                )
+                review_result = self.plan_reviewer.review_plan(
+                    manifest_path=manifest_path,
+                    review_feedback=last_feedback,
+                    instructions=instructions,
+                )
+
+                if not review_result["success"]:
+                    last_feedback = f"Review failed: {review_result['error']}"
+                    logger.error(last_feedback)
+                    continue
+
+            # Collect issues and improvements
+            issues_found = review_result.get("issues_found", [])
+            improvements = review_result.get("improvements", [])
+            all_issues.extend(issues_found)
+            all_improvements.extend(improvements)
+
+            manifest_data = review_result["manifest_data"]
+            test_code_dict = review_result["test_code"]
+
+            # Step 2: Write updated files to disk (skip in dry_run mode)
+            # Note: PlanReviewer only updates files if it found issues to fix
+            if not self.dry_run and (manifest_data or test_code_dict):
+                try:
+                    # Write manifest if updated
+                    if manifest_data:
+                        manifest_file = Path(manifest_path)
+                        manifest_file.parent.mkdir(parents=True, exist_ok=True)
+                        with open(manifest_file, "w") as f:
+                            json.dump(manifest_data, f, indent=2)
+                        log_file_operation("Updated", str(manifest_file))
+
+                    # Write test files if updated
+                    for test_path, test_code in test_code_dict.items():
+                        test_file = Path(test_path)
+                        test_file.parent.mkdir(parents=True, exist_ok=True)
+                        with open(test_file, "w") as f:
+                            f.write(test_code)
+                        log_file_operation("Updated", str(test_file))
+
+                except Exception as e:
+                    last_feedback = f"Failed to write updated files: {e}"
+                    logger.error(last_feedback)
+                    continue
+
+            # Step 3: Structural validation
+            with LogContext("Step 2: Running structural validation", style="info"):
+                validation_result = self.validation_runner.validate_manifest(
+                    manifest_path, use_chain=True
+                )
+                log_validation_result("Structural", passed=validation_result.success)
+
+            if not validation_result.success:
+                last_feedback = (
+                    f"Structural validation failed: {validation_result.stderr}"
+                )
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+
+            # Step 4: Behavioral test validation
+            with LogContext("Step 3: Running behavioral validation", style="info"):
+                behavioral_result = self._validate_behavioral_tests(manifest_path)
+                log_validation_result("Behavioral", passed=behavioral_result["success"])
+
+            if behavioral_result["success"]:
+                # Review complete - both validations pass!
+                logger.info(f"Plan review complete in {iteration} iteration(s)!")
+                log_phase_end("PLAN REVIEW", success=True)
+                return {
+                    "success": True,
+                    "iterations": iteration,
+                    "issues_found": all_issues,
+                    "improvements": all_improvements,
+                    "error": None,
+                }
+            else:
+                # Behavioral validation failed - provide feedback for next iteration
+                last_feedback = behavioral_result["output"]
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+
+        # Max iterations reached without success
+        error_msg = f"Plan review loop failed after {max_iterations} iterations. Last feedback: {last_feedback}"
+        logger.error(error_msg)
+        log_phase_end("PLAN REVIEW", success=False)
+        return {
+            "success": False,
+            "iterations": iteration,
+            "issues_found": all_issues,
+            "improvements": all_improvements,
             "error": error_msg,
         }
 

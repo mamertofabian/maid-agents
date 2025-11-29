@@ -1,0 +1,44 @@
+# Template: plan_reviewer_user
+# Version: 1.0.0
+# Type: user
+# MAID Spec: v1.3
+
+Review the following plan for architectural soundness and quality.
+
+**Manifest:** $manifest_path
+**Test File:** $test_file_path
+
+## Goal
+
+$goal
+
+## Artifacts
+
+$artifacts_section
+
+## Review Feedback
+
+$review_feedback
+
+$additional_instructions_section
+
+## Your Task
+
+1. **Review the manifest and test files** for architectural quality
+2. **Evaluate:**
+   - Goal clarity and achievability
+   - Test coverage and meaningfulness
+   - Artifact design and separation of concerns
+   - MAID compliance and best practices
+3. **Make improvements ONLY if architectural issues are found**
+4. **Provide detailed feedback** on the plan quality
+
+Focus on architecture and design, not implementation details. The plan should be:
+- **Clear**: Goal and artifacts are well-defined
+- **Testable**: Tests comprehensively verify the contract
+- **Isolated**: Properly scoped and self-contained
+- **Sound**: Well-architected with proper separation of concerns
+
+If the plan is architecturally sound, approve it without changes. If issues are found, fix them using your Edit tool.
+
+Provide your review in the format specified in the system prompt.

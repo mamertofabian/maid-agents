@@ -1,0 +1,40 @@
+{
+  "version": "1",
+  "goal": "Add run_plan_review_loop method to MAIDOrchestrator and review-plan CLI command for Plan Reviewer integration",
+  "description": "Integrate the Plan Reviewer agent into the orchestrator by adding run_plan_review_loop method that coordinates the plan review workflow. Add the review-plan CLI command to make it accessible via ccmaid.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/cli/main.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_032_plan_reviewer_agent.py",
+    "maid_agents/agents/plan_reviewer.py",
+    "maid_agents/core/validation_runner.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_plan_review_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "instructions", "type": "str", "default": "\"\""},
+          {"name": "max_iterations", "type": "int", "default": "5"}
+        ],
+        "returns": {"type": "dict"}
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_032_plan_reviewer_agent.py::test_orchestrator_run_plan_review_loop_exists",
+    "tests/test_task_032_plan_reviewer_agent.py::test_orchestrator_run_plan_review_loop_returns_structure",
+    "tests/test_task_032_plan_reviewer_agent.py::test_orchestrator_run_plan_review_loop_with_different_iterations",
+    "tests/test_task_032_plan_reviewer_agent.py::test_orchestrator_run_plan_review_loop_without_instructions",
+    "tests/test_task_032_plan_reviewer_agent.py::test_cli_review_plan_command_integration",
+    "-v"
+  ]
+}

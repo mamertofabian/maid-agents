@@ -304,6 +304,30 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
     )
 
+    # Review-plan subcommand
+    review_plan_parser = subparsers.add_parser(
+        "review-plan",
+        help="Review manifest and tests for architectural soundness (intermediate quality gate)",
+    )
+    review_plan_parser.add_argument("manifest_path", help="Path to manifest file")
+    review_plan_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum review iterations (default: from config or 5)",
+    )
+    review_plan_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide review (optional)",
+    )
+    review_plan_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
+    )
+
     # Generate-test subcommand
     generate_test_parser = subparsers.add_parser(
         "generate-test",
@@ -772,6 +796,74 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 f"Refinement failed after {result['iterations']} iteration(s)",
                 details=result.get("error"),
                 suggestion="Try a more specific refinement goal or increase --max-iterations",
+            )
+            sys.exit(1)
+
+    elif args.command == "review-plan":
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else getattr(config, "max_plan_review_iterations", 5)
+        )
+
+        manifest_path = args.manifest_path
+        if not Path(manifest_path).exists():
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion="Ensure the manifest file exists and the path is correct",
+            )
+            sys.exit(1)
+
+        if not args.quiet:
+            console.print(
+                Panel(
+                    f"[bold]Reviewing plan for architectural soundness[/bold]\n[dim]Manifest:[/dim] {manifest_path}",
+                    title="🔎 Plan Review",
+                    border_style="magenta",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Reviewing plan...", total=None)
+            result = orchestrator.run_plan_review_loop(
+                manifest_path=manifest_path,
+                instructions=args.instructions,
+                max_iterations=max_iterations,
+            )
+
+        if result["success"]:
+            _print_success(
+                f"Plan review complete in {result['iterations']} iteration(s)",
+                details={
+                    "Issues found": len(result.get("issues_found", [])),
+                    "Improvements": len(result.get("improvements", [])),
+                },
+            )
+
+            issues = result.get("issues_found", [])
+            if issues:
+                console.print("\n  [yellow]Issues identified:[/yellow]")
+                for i, issue in enumerate(issues, 1):
+                    console.print(f"    {i}. {issue}")
+
+            improvements = result.get("improvements", [])
+            if improvements:
+                console.print("\n  [cyan]Improvements made:[/cyan]")
+                for i, improvement in enumerate(improvements, 1):
+                    console.print(f"    {i}. {improvement}")
+
+            sys.exit(0)
+        else:
+            _print_error(
+                f"Plan review failed after {result['iterations']} iteration(s)",
+                details=result.get("error"),
+                suggestion="Check the manifest and test files, or increase --max-iterations",
             )
             sys.exit(1)
 
