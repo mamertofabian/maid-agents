@@ -1,0 +1,56 @@
+{
+  "goal": "Add retry mode control (AUTO, DISABLED, CONFIRM) to implementation and refactoring loops with CLI flags --no-retry and --confirm-retry, defaulting to DISABLED for deterministic behavior",
+  "taskType": "edit",
+  "creatableFiles": [],
+  "editableFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/cli/main.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_026_retry_mode_control.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "class",
+        "name": "RetryMode"
+      },
+      {
+        "type": "function",
+        "name": "_should_retry",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "current_iteration", "type": "int"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"},
+          {"name": "error_msg", "type": "str"}
+        ],
+        "returns": "bool"
+      },
+      {
+        "type": "function",
+        "name": "run_implementation_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_refactoring_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"}
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["python", "-m", "pytest", "tests/test_task_026_retry_mode_control.py", "-v"]
+}

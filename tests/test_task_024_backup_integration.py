@@ -129,8 +129,12 @@ class TestImplementationLoopBackup:
             claude=claude, validation_runner=mock_validation_runner, dry_run=False
         )
 
-        # Run implementation loop with max 3 iterations
-        result = orchestrator.run_implementation_loop(manifest_path, max_iterations=3)
+        # Run implementation loop with max 3 iterations (with AUTO retry mode for testing retries)
+        from maid_agents.core.orchestrator import RetryMode
+
+        result = orchestrator.run_implementation_loop(
+            manifest_path, max_iterations=3, retry_mode=RetryMode.AUTO
+        )
 
         # Verify success
         assert result["success"] is True
@@ -297,7 +301,12 @@ class TestRefactoringLoopBackup:
         # Inject mock refactorer directly into orchestrator
         orchestrator.refactorer = mock_refactorer
 
-        result = orchestrator.run_refactoring_loop(manifest_path, max_iterations=3)
+        # Run with AUTO retry mode to test retry behavior
+        from maid_agents.core.orchestrator import RetryMode
+
+        result = orchestrator.run_refactoring_loop(
+            manifest_path, max_iterations=3, retry_mode=RetryMode.AUTO
+        )
 
         # Verify success
         assert result["success"] is True

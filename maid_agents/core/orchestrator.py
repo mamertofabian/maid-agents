@@ -44,6 +44,14 @@ class WorkflowState(Enum):
     FAILED = "failed"
 
 
+class RetryMode(Enum):
+    """Retry behavior modes for implementation/refactoring loops."""
+
+    AUTO = "auto"  # Automatic retry (default)
+    DISABLED = "disabled"  # No retries, fail on first error
+    CONFIRM = "confirm"  # Ask user before each retry
+
+
 @dataclass
 class WorkflowResult:
     """Result of workflow execution."""
@@ -378,13 +386,17 @@ class MAIDOrchestrator:
         return max(task_numbers) + 1 if task_numbers else 1
 
     def run_implementation_loop(
-        self, manifest_path: str, max_iterations: int = 20
+        self,
+        manifest_path: str,
+        max_iterations: int = 20,
+        retry_mode: RetryMode = RetryMode.DISABLED,
     ) -> dict:
         """Execute implementation loop: code generation until tests pass.
 
         Args:
             manifest_path: Path to manifest file
             max_iterations: Maximum implementation iterations
+            retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
 
         Returns:
             Dict with implementation loop results
@@ -546,12 +558,42 @@ class MAIDOrchestrator:
                     last_error = (
                         f"Manifest validation failed: {validation_result.stderr}"
                     )
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("IMPLEMENTATION", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
                     logger.warning(f"Iteration {iteration} failed, retrying...")
                     continue
             else:
                 # Tests still failing - extract errors for next iteration
                 test_errors = f"{test_result.stdout}\n{test_result.stderr}"
                 last_error = f"Tests failed: {'; '.join(test_result.errors)}"
+                # Check retry mode before continuing
+                if not self._should_retry(
+                    iteration, max_iterations, retry_mode, last_error
+                ):
+                    logger.error(
+                        f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                    )
+                    log_phase_end("IMPLEMENTATION", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": last_error,
+                    }
                 logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
@@ -566,6 +608,61 @@ class MAIDOrchestrator:
             "iterations": iteration,
             "error": error_msg,
         }
+
+    def _should_retry(
+        self,
+        current_iteration: int,
+        max_iterations: int,
+        retry_mode: RetryMode,
+        error_msg: str,
+    ) -> bool:
+        """Determine if the loop should retry based on retry mode.
+
+        Args:
+            current_iteration: Current iteration number
+            max_iterations: Maximum allowed iterations
+            retry_mode: Retry behavior mode
+            error_msg: Error message from the failed iteration
+
+        Returns:
+            True if should retry, False if should stop
+        """
+        # Check if we've reached max iterations
+        if current_iteration >= max_iterations:
+            return False
+
+        # Handle different retry modes
+        if retry_mode == RetryMode.DISABLED:
+            # Never retry - fail immediately
+            logger.info("Retry mode: DISABLED - stopping after first failure")
+            return False
+        elif retry_mode == RetryMode.CONFIRM:
+            # Ask user before retrying
+            logger.info(f"\n{'='*80}")
+            logger.error(f"Iteration {current_iteration} failed with error:")
+            logger.error(error_msg)
+            logger.info(f"{'='*80}\n")
+
+            try:
+                response = (
+                    input(
+                        f"Retry iteration {current_iteration + 1}/{max_iterations}? [y/N]: "
+                    )
+                    .strip()
+                    .lower()
+                )
+                if response in ["y", "yes"]:
+                    logger.info("User confirmed retry")
+                    return True
+                else:
+                    logger.info("User declined retry - stopping")
+                    return False
+            except (KeyboardInterrupt, EOFError):
+                logger.info("\nRetry cancelled by user")
+                return False
+        else:  # RetryMode.AUTO (default)
+            # Auto retry until max iterations
+            return True
 
     def run_refinement_loop(
         self, manifest_path: str, refinement_goal: str, max_iterations: int = 5
@@ -685,13 +782,17 @@ class MAIDOrchestrator:
         }
 
     def run_refactoring_loop(
-        self, manifest_path: str, max_iterations: int = 10
+        self,
+        manifest_path: str,
+        max_iterations: int = 10,
+        retry_mode: RetryMode = RetryMode.DISABLED,
     ) -> dict:
         """Execute refactoring loop: refactor code with validation and testing.
 
         Args:
             manifest_path: Path to manifest file to refactor
             max_iterations: Maximum refactoring iterations
+            retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
 
         Returns:
             Dict with refactoring loop results
@@ -757,6 +858,21 @@ class MAIDOrchestrator:
                         }
                     last_error = f"Refactoring failed: {error_msg}"
                     logger.error(last_error)
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("REFACTORING", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
                     continue
 
             improvements = refactor_result.get("improvements", [])
@@ -770,6 +886,21 @@ class MAIDOrchestrator:
 
             if not validation_result.success:
                 last_error = f"Structural validation failed:\n{validation_result.stderr}\n{validation_result.stdout}"
+                # Check retry mode before continuing
+                if not self._should_retry(
+                    iteration, max_iterations, retry_mode, last_error
+                ):
+                    logger.error(
+                        f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                    )
+                    log_phase_end("REFACTORING", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": last_error,
+                    }
                 logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
@@ -816,6 +947,21 @@ class MAIDOrchestrator:
                     last_error = f"Tests failed:\n{error_summary}\n\nFull test output:\n{test_output}"
                 else:
                     last_error = f"Tests failed. Full test output:\n{test_output}"
+                # Check retry mode before continuing
+                if not self._should_retry(
+                    iteration, max_iterations, retry_mode, last_error
+                ):
+                    logger.error(
+                        f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                    )
+                    log_phase_end("REFACTORING", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": last_error,
+                    }
                 logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 

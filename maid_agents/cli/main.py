@@ -152,6 +152,16 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         default=None,
         help="Maximum implementation iterations (default: from config or 20)",
     )
+    implement_parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        help="Disable automatic retries - fail immediately on first error",
+    )
+    implement_parser.add_argument(
+        "--confirm-retry",
+        action="store_true",
+        help="Ask for confirmation before each retry iteration",
+    )
 
     # Refactor subcommand
     refactor_parser = subparsers.add_parser(
@@ -164,6 +174,16 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=int,
         default=None,
         help="Maximum refactoring iterations (default: from config or 10)",
+    )
+    refactor_parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        help="Disable automatic retries - fail immediately on first error",
+    )
+    refactor_parser.add_argument(
+        "--confirm-retry",
+        action="store_true",
+        help="Ask for confirmation before each retry iteration",
     )
 
     # Refine subcommand
@@ -330,12 +350,29 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
     elif args.command == "implement":
+        # Import RetryMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode
+
         # Use config default if --max-iterations not specified
         max_iterations = (
             args.max_iterations
             if args.max_iterations is not None
             else config.max_implementation_iterations
         )
+
+        # Determine retry mode from flags
+        if args.no_retry and args.confirm_retry:
+            _print_error(
+                "Cannot use both --no-retry and --confirm-retry",
+                suggestion="Choose one retry mode or use neither for automatic retries",
+            )
+            sys.exit(1)
+        elif args.no_retry:
+            retry_mode = RetryMode.DISABLED
+        elif args.confirm_retry:
+            retry_mode = RetryMode.CONFIRM
+        else:
+            retry_mode = RetryMode.DISABLED  # Default
 
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
@@ -346,9 +383,10 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
         if not args.quiet:
+            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}"
             console.print(
                 Panel(
-                    f"[bold]Implementing code from manifest[/bold]\n[dim]Manifest:[/dim] {manifest_path}",
+                    f"[bold]Implementing code from manifest[/bold]\n[dim]Manifest:[/dim] {manifest_path}\n{retry_info}",
                     title="⚙️ Implementation Phase",
                     border_style="green",
                 )
@@ -362,7 +400,9 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         ) as progress:
             progress.add_task("Implementing...", total=None)
             result = orchestrator.run_implementation_loop(
-                manifest_path=manifest_path, max_iterations=max_iterations
+                manifest_path=manifest_path,
+                max_iterations=max_iterations,
+                retry_mode=retry_mode,
             )
 
         if result["success"]:
@@ -382,12 +422,29 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
     elif args.command == "refactor":
+        # Import RetryMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode
+
         # Use config default if --max-iterations not specified
         max_iterations = (
             args.max_iterations
             if args.max_iterations is not None
             else getattr(config, "max_refactoring_iterations", 10)
         )
+
+        # Determine retry mode from flags
+        if args.no_retry and args.confirm_retry:
+            _print_error(
+                "Cannot use both --no-retry and --confirm-retry",
+                suggestion="Choose one retry mode or use neither for default behavior",
+            )
+            sys.exit(1)
+        elif args.no_retry:
+            retry_mode = RetryMode.DISABLED
+        elif args.confirm_retry:
+            retry_mode = RetryMode.CONFIRM
+        else:
+            retry_mode = RetryMode.DISABLED  # Default
 
         manifest_path = args.manifest_path
         if not Path(manifest_path).exists():
@@ -398,9 +455,10 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             sys.exit(1)
 
         if not args.quiet:
+            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}"
             console.print(
                 Panel(
-                    f"[bold]Refactoring code for quality improvements[/bold]\n[dim]Manifest:[/dim] {manifest_path}",
+                    f"[bold]Refactoring code for quality improvements[/bold]\n[dim]Manifest:[/dim] {manifest_path}\n{retry_info}",
                     title="✨ Refactoring Phase",
                     border_style="magenta",
                 )
@@ -414,7 +472,9 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         ) as progress:
             progress.add_task("Refactoring...", total=None)
             result = orchestrator.run_refactoring_loop(
-                manifest_path=manifest_path, max_iterations=max_iterations
+                manifest_path=manifest_path,
+                max_iterations=max_iterations,
+                retry_mode=retry_mode,
             )
 
         if result["success"]:
