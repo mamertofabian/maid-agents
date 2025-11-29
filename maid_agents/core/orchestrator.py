@@ -435,6 +435,10 @@ class MAIDOrchestrator:
         iteration = 0
         last_error = None
 
+        # Calculate display max based on retry mode
+        # When retry is DISABLED, effective max is 1 (no retries)
+        display_max = 1 if retry_mode == RetryMode.DISABLED else max_iterations
+
         while iteration < max_iterations:
             iteration += 1
 
@@ -447,7 +451,7 @@ class MAIDOrchestrator:
                 )
                 backup_manager.restore_files()
 
-            log_iteration(iteration, max_iterations, "Generating code to pass tests")
+            log_iteration(iteration, display_max, "Generating code to pass tests")
 
             # Step 2: Generate code using Developer agent
             # Pass test errors from previous iteration (if any)
@@ -853,6 +857,10 @@ class MAIDOrchestrator:
         iteration = 0
         last_error = ""
 
+        # Calculate display max based on retry mode
+        # When retry is DISABLED, effective max is 1 (no retries)
+        display_max = 1 if retry_mode == RetryMode.DISABLED else max_iterations
+
         while iteration < max_iterations:
             iteration += 1
 
@@ -865,7 +873,7 @@ class MAIDOrchestrator:
                 )
                 backup_manager.restore_files()
 
-            log_iteration(iteration, max_iterations, "Refactoring code")
+            log_iteration(iteration, display_max, "Refactoring code")
 
             # Step 1: Refactor code
             with LogContext("Step 1: Refactoring code", style="info"):
