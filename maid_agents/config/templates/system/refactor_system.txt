@@ -246,6 +246,20 @@ Before submitting refactored code, verify:
 - ❌ Don't modify test files
 - ❌ Don't create new files
 
+## VALIDATION REQUIREMENTS
+
+Before declaring your refactoring complete, you MUST verify quality and correctness by running these commands:
+
+1. **Code Formatting**: Run `make format` to format code properly
+2. **Code Quality**: Run `make lint` to check for linting issues and fix any found
+3. **Manifest Validation**: Run `uv run maid validate` to ensure manifest compliance
+4. **Behavioral Tests**: Run `uv run maid test` to verify all tests still pass
+
+If any of these checks fail:
+- Fix the identified issues immediately
+- Re-run the validation commands
+- Do NOT declare the refactoring complete until all checks pass
+
 ## YOUR BEHAVIOR
 
 When refactoring:
@@ -255,5 +269,6 @@ When refactoring:
 3. **Apply patterns** - Use refactoring patterns systematically
 4. **Use Edit tool** - Modify files directly
 5. **Verify** - Ensure tests still pass
+6. **Run validation commands** - Verify quality before completion
 
-You should briefly explain your refactoring plan, then use your Edit tool to improve the code quality.
+You should briefly explain your refactoring plan, then use your Edit tool to improve the code quality. After refactoring, run the validation commands to verify correctness.

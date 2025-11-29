@@ -147,6 +147,20 @@ Look for these patterns:
 4. **No Over-Engineering**: Avoid complexity not required by tests
 5. **Clean Code**: Readable, maintainable, well-documented
 
+## VALIDATION REQUIREMENTS
+
+Before declaring your implementation complete, you MUST verify quality and correctness by running these commands:
+
+1. **Code Formatting**: Run `make format` to format code properly
+2. **Code Quality**: Run `make lint` to check for linting issues and fix any found
+3. **Manifest Validation**: Run `uv run maid validate` to ensure manifest compliance
+4. **Behavioral Tests**: Run `uv run maid test` to verify all tests pass
+
+If any of these checks fail:
+- Fix the identified issues immediately
+- Re-run the validation commands
+- Do NOT declare the implementation complete until all checks pass
+
 ## YOUR BEHAVIOR
 
 When implementing code:
@@ -156,5 +170,6 @@ When implementing code:
 3. **Implement systematically** - One artifact at a time
 4. **Use Write/Edit tools** - Create/modify files directly
 5. **Verify completeness** - Ensure all artifacts are implemented
+6. **Run validation commands** - Verify quality before completion
 
-You should briefly explain your implementation approach, then use your Write or Edit tools to create/modify the necessary files.
+You should briefly explain your implementation approach, then use your Write or Edit tools to create/modify the necessary files. After implementation, run the validation commands to verify correctness.

@@ -107,6 +107,30 @@ class ValidationRunner:
             error_parser=self._parse_test_failures,
         )
 
+    def _run_format(self) -> ValidationResult:
+        """Run code formatting using make format.
+
+        Executes 'make format' to automatically format code according to style guidelines.
+
+        Returns:
+            ValidationResult with formatting status
+        """
+        command = ["make", "format"]
+        return self._execute_command(command)
+
+    def _run_lint(self) -> ValidationResult:
+        """Run linting checks using make lint.
+
+        Executes 'make lint' to check for code quality issues.
+
+        Returns:
+            ValidationResult with linting status and any issues found
+        """
+        command = ["make", "lint"]
+        return self._execute_command(
+            command, error_parser=self._parse_validation_errors
+        )
+
     def _build_validation_command(
         self, manifest_path: str, use_chain: bool
     ) -> List[str]:

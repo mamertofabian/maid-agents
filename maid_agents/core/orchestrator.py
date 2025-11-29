@@ -590,9 +590,31 @@ class MAIDOrchestrator:
                     }
 
             if test_result.success:
-                # Tests pass! Now validate manifest compliance
+                # Tests pass! Now run code quality checks before validation
+                with LogContext("Step 4: Running code quality checks", style="success"):
+                    # Format code
+                    format_result = self.validation_runner._run_format()
+                    log_validation_result(
+                        "Code Formatting", passed=format_result.success
+                    )
+
+                    if not format_result.success:
+                        last_error = f"Code formatting failed: {format_result.stderr}"
+                        logger.warning(f"Iteration {iteration} failed, retrying...")
+                        continue
+
+                    # Lint code
+                    lint_result = self.validation_runner._run_lint()
+                    log_validation_result("Code Linting", passed=lint_result.success)
+
+                    if not lint_result.success:
+                        last_error = f"Linting failed: {lint_result.stderr}"
+                        logger.warning(f"Iteration {iteration} failed, retrying...")
+                        continue
+
+                # Now validate manifest compliance
                 with LogContext(
-                    "Step 4: Validating manifest compliance", style="success"
+                    "Step 5: Validating manifest compliance", style="success"
                 ):
                     validation_result = self.validation_runner.validate_manifest(
                         manifest_path, use_chain=True
@@ -977,8 +999,58 @@ class MAIDOrchestrator:
 
             improvements = refactor_result.get("improvements", [])
 
-            # Step 2: Structural validation (maid validate)
-            with LogContext("Step 2: Running structural validation", style="info"):
+            # Step 2: Run code quality checks
+            with LogContext("Step 2: Running code quality checks", style="info"):
+                # Format code
+                format_result = self.validation_runner._run_format()
+                log_validation_result("Code Formatting", passed=format_result.success)
+
+                if not format_result.success:
+                    last_error = f"Code formatting failed: {format_result.stderr}"
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("REFACTORING", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
+                    logger.warning(f"Iteration {iteration} failed, retrying...")
+                    continue
+
+                # Lint code
+                lint_result = self.validation_runner._run_lint()
+                log_validation_result("Code Linting", passed=lint_result.success)
+
+                if not lint_result.success:
+                    last_error = f"Linting failed: {lint_result.stderr}"
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("REFACTORING", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
+                    logger.warning(f"Iteration {iteration} failed, retrying...")
+                    continue
+
+            # Step 3: Structural validation (maid validate)
+            with LogContext("Step 3: Running structural validation", style="info"):
                 validation_result = self.validation_runner.validate_manifest(
                     manifest_path, use_chain=True
                 )
@@ -1004,8 +1076,8 @@ class MAIDOrchestrator:
                 logger.warning(f"Iteration {iteration} failed, retrying...")
                 continue
 
-            # Step 3: Behavioral test validation (maid test / validationCommand)
-            with LogContext("Step 3: Running behavioral tests", style="info"):
+            # Step 4: Behavioral test validation (maid test / validationCommand)
+            with LogContext("Step 4: Running behavioral tests", style="info"):
                 test_result = self.validation_runner.run_behavioral_tests(manifest_path)
                 log_validation_result("Behavioral", passed=test_result.success)
 
