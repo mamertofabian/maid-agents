@@ -4,6 +4,11 @@ import argparse
 import sys
 from pathlib import Path
 
+try:
+    from importlib.metadata import version
+except ImportError:
+    from importlib_metadata import version
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -81,7 +86,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
     parser.add_argument(
         "--version",
         action="version",
-        version="ccmaid 0.1.0",
+        version=f"ccmaid {version('maid-agents')}",
     )
 
     parser.add_argument(
