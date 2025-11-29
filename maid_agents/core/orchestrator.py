@@ -148,17 +148,34 @@ class MAIDOrchestrator:
                 f"Only paths within {project_dir} are allowed."
             )
 
-    def run_full_workflow(self, goal: str) -> WorkflowResult:
+    def run_full_workflow(
+        self,
+        goal: str,
+        max_iterations_planning: int = 10,
+        max_iterations_implementation: int = 20,
+        retry_mode: RetryMode = RetryMode.DISABLED,
+        error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
+        instructions: str = "",
+    ) -> WorkflowResult:
         """Execute complete MAID workflow from goal to integration.
 
         Args:
             goal: High-level goal description
+            max_iterations_planning: Maximum planning iterations (default: 10)
+            max_iterations_implementation: Maximum implementation iterations (default: 20)
+            retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
+            error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
+            instructions: Optional additional instructions or context
 
         Returns:
             WorkflowResult with status and manifest path
         """
         # Phase 1-2: Planning Loop (manifest + tests)
-        planning_result = self.run_planning_loop(goal=goal)
+        planning_result = self.run_planning_loop(
+            goal=goal,
+            max_iterations=max_iterations_planning,
+            instructions=instructions,
+        )
 
         if not planning_result["success"]:
             return WorkflowResult(
@@ -170,7 +187,13 @@ class MAIDOrchestrator:
         manifest_path = planning_result["manifest_path"]
 
         # Phase 3: Implementation Loop (code generation)
-        impl_result = self.run_implementation_loop(manifest_path=manifest_path)
+        impl_result = self.run_implementation_loop(
+            manifest_path=manifest_path,
+            max_iterations=max_iterations_implementation,
+            retry_mode=retry_mode,
+            error_context_mode=error_context_mode,
+            instructions=instructions,
+        )
 
         if not impl_result["success"]:
             return WorkflowResult(

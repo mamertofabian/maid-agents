@@ -66,6 +66,8 @@ def test_no_subcommand_shows_help():
 
 def test_run_command_with_mock():
     """Test run command with --mock flag."""
+    from maid_agents.core.orchestrator import RetryMode, ErrorContextMode
+
     mock_orchestrator = MagicMock()
     mock_result = MagicMock()
     mock_result.success = True
@@ -81,7 +83,14 @@ def test_run_command_with_mock():
                 main()
             except SystemExit as e:
                 assert e.code == 0
-                mock_orchestrator.run_full_workflow.assert_called_once_with("test goal")
+                mock_orchestrator.run_full_workflow.assert_called_once_with(
+                    goal="test goal",
+                    max_iterations_planning=10,
+                    max_iterations_implementation=20,
+                    retry_mode=RetryMode.DISABLED,
+                    error_context_mode=ErrorContextMode.INCREMENTAL,
+                    instructions="",
+                )
 
 
 def test_plan_command_with_mock():

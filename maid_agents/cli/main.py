@@ -131,6 +131,44 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         help="Run full MAID workflow from goal",
     )
     run_parser.add_argument("goal", help="High-level goal description")
+    run_parser.add_argument(
+        "--max-iterations-planning",
+        type=int,
+        default=None,
+        help="Maximum planning iterations (default: from config or 10)",
+    )
+    run_parser.add_argument(
+        "--max-iterations-implementation",
+        type=int,
+        default=None,
+        help="Maximum implementation iterations (default: from config or 20)",
+    )
+    run_parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        help="Disable automatic retries - fail immediately on first error",
+    )
+    run_parser.add_argument(
+        "--confirm-retry",
+        action="store_true",
+        help="Ask for confirmation before each retry iteration",
+    )
+    run_parser.add_argument(
+        "--fresh-start",
+        action="store_true",
+        help="Restore files to original state on each retry (default: build on previous attempt)",
+    )
+    run_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide the workflow (optional)",
+    )
+    run_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
+    )
 
     # Plan subcommand
     plan_parser = subparsers.add_parser(
@@ -334,6 +372,42 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
     orchestrator = MAIDOrchestrator(claude=claude)
 
     if args.command == "run":
+        # Import RetryMode and ErrorContextMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode, ErrorContextMode
+
+        # Use config defaults if not specified
+        max_iterations_planning = (
+            args.max_iterations_planning
+            if args.max_iterations_planning is not None
+            else config.max_planning_iterations
+        )
+        max_iterations_implementation = (
+            args.max_iterations_implementation
+            if args.max_iterations_implementation is not None
+            else config.max_implementation_iterations
+        )
+
+        # Determine retry mode from flags
+        if args.no_retry and args.confirm_retry:
+            _print_error(
+                "Cannot use both --no-retry and --confirm-retry",
+                suggestion="Choose one retry mode or use neither for default behavior",
+            )
+            sys.exit(1)
+        elif args.no_retry:
+            retry_mode = RetryMode.DISABLED
+        elif args.confirm_retry:
+            retry_mode = RetryMode.CONFIRM
+        else:
+            retry_mode = RetryMode.DISABLED  # Default
+
+        # Determine error context mode from flags
+        error_context_mode = (
+            ErrorContextMode.FRESH_START
+            if args.fresh_start
+            else ErrorContextMode.INCREMENTAL
+        )
+
         if not args.quiet:
             console.print(
                 Panel(
@@ -350,7 +424,14 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             transient=True,
         ) as progress:
             progress.add_task("Running workflow...", total=None)
-            result = orchestrator.run_full_workflow(args.goal)
+            result = orchestrator.run_full_workflow(
+                goal=args.goal,
+                max_iterations_planning=max_iterations_planning,
+                max_iterations_implementation=max_iterations_implementation,
+                retry_mode=retry_mode,
+                error_context_mode=error_context_mode,
+                instructions=args.instructions,
+            )
 
         if result.success:
             _print_success(

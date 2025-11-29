@@ -1,0 +1,61 @@
+{
+  "version": "1",
+  "goal": "Add new flags available in other agents (developer, refactorer, etc.) to the run command of the orchestrator",
+  "description": "Integrate existing flags (--no-retry, --confirm-retry, --fresh-start, --instructions, --bypass-permissions) that are already available in the plan, implement, refactor, and refine commands to the run command. This should be a simple integration that passes these flags through to the orchestrator's internal methods without requiring new enums, methods, or implementations.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "maid_agents/core/orchestrator.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_030_run_command_flags.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_full_workflow",
+        "class": "MAIDOrchestrator",
+        "description": "Execute complete MAID workflow from goal to integration, now accepting additional control flags",
+        "args": [
+          {
+            "name": "goal",
+            "type": "str"
+          },
+          {
+            "name": "max_iterations_planning",
+            "type": "int",
+            "default": "10"
+          },
+          {
+            "name": "max_iterations_implementation",
+            "type": "int",
+            "default": "20"
+          },
+          {
+            "name": "retry_mode",
+            "type": "RetryMode",
+            "default": "RetryMode.DISABLED"
+          },
+          {
+            "name": "error_context_mode",
+            "type": "ErrorContextMode",
+            "default": "ErrorContextMode.INCREMENTAL"
+          },
+          {
+            "name": "instructions",
+            "type": "str",
+            "default": "\"\""
+          }
+        ],
+        "returns": "WorkflowResult"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_030_run_command_flags.py",
+    "-v"
+  ]
+}
