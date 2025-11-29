@@ -1,0 +1,81 @@
+{
+  "version": "1",
+  "goal": "Create a new Fixer agent (ccmaid fix) that reviews implementation, detects validation violations, test failures, and bugs, then automatically fixes them",
+  "description": "Implement a Fixer agent that acts as both a reviewer and bug fixer. This intermediate agent (not part of main MAID phases) checks implementation for validation violations, test failures, and bugs, then automatically fixes them and runs code quality checks. Similar to Developer agent but specialized for fixing existing implementations with error context. Accepts manifest, instructions, bypass_permissions, and other flags like the Developer agent.",
+  "taskType": "create",
+  "creatableFiles": [
+    "maid_agents/agents/fixer.py",
+    "maid_agents/templates/system/fixer.txt",
+    "maid_agents/templates/user/fixer.txt"
+  ],
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "maid_agents/core/orchestrator.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_031_fixer_agent.py",
+    "maid_agents/agents/fixer.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/base_agent.py",
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/config/template_manager.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_fix_loop",
+        "description": "Execute fix loop with retry and backup handling for fixing validation violations, test failures, and bugs",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {
+            "name": "manifest_path",
+            "type": "str"
+          },
+          {
+            "name": "validation_errors",
+            "type": "str",
+            "default": "\"\""
+          },
+          {
+            "name": "test_errors",
+            "type": "str",
+            "default": "\"\""
+          },
+          {
+            "name": "instructions",
+            "type": "str",
+            "default": "\"\""
+          },
+          {
+            "name": "max_iterations",
+            "type": "int",
+            "default": "10"
+          },
+          {
+            "name": "retry_mode",
+            "type": "RetryMode",
+            "default": "RetryMode.DISABLED"
+          },
+          {
+            "name": "error_context_mode",
+            "type": "ErrorContextMode",
+            "default": "ErrorContextMode.INCREMENTAL"
+          }
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommands": [
+    [
+      "uv",
+      "run",
+      "pytest",
+      "tests/test_task_031_fixer_agent.py",
+      "-v"
+    ]
+  ]
+}

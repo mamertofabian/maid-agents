@@ -79,6 +79,9 @@ Examples:
   # Generate tests from existing implementation (reverse workflow)
   ccmaid generate-test manifests/task-042.manifest.json -i path/to/code.py
 
+  # Fix validation violations and test failures
+  ccmaid fix manifests/task-042.manifest.json --validation-errors "..." --test-errors "..."
+
 For more information, visit: https://github.com/mamertofabian/maid-agents
         """,
     )
@@ -318,6 +321,57 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=int,
         default=5,
         help="Maximum iterations for fixing failing tests (default: 5)",
+    )
+
+    # Fix subcommand
+    fix_parser = subparsers.add_parser(
+        "fix",
+        help="Fix validation violations, test failures, and bugs in implementation",
+    )
+    fix_parser.add_argument("manifest_path", help="Path to manifest file")
+    fix_parser.add_argument(
+        "--validation-errors",
+        type=str,
+        default="",
+        help="Validation error output from maid validate",
+    )
+    fix_parser.add_argument(
+        "--test-errors",
+        type=str,
+        default="",
+        help="Test error output from pytest or maid test",
+    )
+    fix_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide fixing (optional)",
+    )
+    fix_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum iterations for fixing (default: 10)",
+    )
+    fix_parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        help="Disable automatic retries on failure (fail immediately)",
+    )
+    fix_parser.add_argument(
+        "--confirm-retry",
+        action="store_true",
+        help="Ask for confirmation before each retry (interactive mode)",
+    )
+    fix_parser.add_argument(
+        "--fresh-start",
+        action="store_true",
+        help="Restore files to original state on each retry (default: incremental)",
+    )
+    fix_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
     )
 
     args = parser.parse_args()
@@ -794,6 +848,110 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 f"Test generation failed after {iterations} iteration(s)",
                 details=result.get("error"),
                 suggestion="Check that the manifest and implementation file are valid, or increase --max-iterations",
+            )
+            sys.exit(1)
+
+    elif args.command == "fix":
+        # Import RetryMode and ErrorContextMode here to avoid circular imports
+        from maid_agents.core.orchestrator import RetryMode, ErrorContextMode
+
+        # Use config default if --max-iterations not specified
+        max_iterations = (
+            args.max_iterations
+            if args.max_iterations is not None
+            else getattr(config, "max_fix_iterations", 10)
+        )
+
+        # Determine retry mode from flags
+        if args.no_retry and args.confirm_retry:
+            _print_error(
+                "Cannot use both --no-retry and --confirm-retry",
+                suggestion="Choose one retry mode or use neither for default behavior",
+            )
+            sys.exit(1)
+        elif args.no_retry:
+            retry_mode = RetryMode.DISABLED
+        elif args.confirm_retry:
+            retry_mode = RetryMode.CONFIRM
+        else:
+            retry_mode = RetryMode.DISABLED  # Default
+
+        # Determine error context mode from flags
+        error_context_mode = (
+            ErrorContextMode.FRESH_START
+            if args.fresh_start
+            else ErrorContextMode.INCREMENTAL
+        )
+
+        manifest_path = args.manifest_path
+        validation_errors = args.validation_errors
+        test_errors = args.test_errors
+
+        # Validate manifest path exists
+        if not Path(manifest_path).exists():
+            _print_error(
+                f"Manifest not found: {manifest_path}",
+                suggestion="Ensure the manifest file exists and the path is correct",
+            )
+            sys.exit(1)
+
+        # Check that at least one error source is provided
+        if not validation_errors and not test_errors:
+            _print_error(
+                "No errors provided",
+                suggestion="Provide at least one of --validation-errors or --test-errors to guide the fix",
+            )
+            sys.exit(1)
+
+        if not args.quiet:
+            error_summary = []
+            if validation_errors:
+                error_summary.append("[dim]Validation errors:[/dim] provided")
+            if test_errors:
+                error_summary.append("[dim]Test errors:[/dim] provided")
+
+            retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}, [dim]Error context:[/dim] {error_context_mode.value}"
+            console.print(
+                Panel(
+                    f"[bold]Fixing implementation issues[/bold]\n"
+                    f"[dim]Manifest:[/dim] {manifest_path}\n"
+                    + "\n".join(error_summary)
+                    + f"\n{retry_info}",
+                    title="🔧 Fix Phase",
+                    border_style="red",
+                )
+            )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Fixing issues...", total=None)
+            result = orchestrator.run_fix_loop(
+                manifest_path=manifest_path,
+                validation_errors=validation_errors,
+                test_errors=test_errors,
+                instructions=args.instructions,
+                max_iterations=max_iterations,
+                retry_mode=retry_mode,
+                error_context_mode=error_context_mode,
+            )
+
+        if result["success"]:
+            _print_success(
+                f"Fix complete in {result['iterations']} iteration(s)",
+                details={
+                    "Files modified": ", ".join(result.get("files_modified", [])),
+                },
+            )
+            sys.exit(0)
+        else:
+            _print_error(
+                f"Fix failed after {result['iterations']} iteration(s)",
+                details=result.get("error"),
+                suggestion="Review errors and consider increasing --max-iterations or adjusting retry flags",
             )
             sys.exit(1)
 

@@ -1,0 +1,48 @@
+# Template: fixer_user
+# Version: 3.0.0
+# Type: user
+# MAID Spec: v1.2
+
+Review and fix the implementation to resolve all validation violations, test failures, and bugs.
+
+**Goal:** $goal
+
+## Error Analysis
+
+$errors_section
+
+## Files to Fix
+
+Use your Write or Edit tools to modify these files:
+
+$files_to_modify
+
+$additional_instructions_section
+
+## Your Task
+
+1. Analyze all errors above (validation errors AND test failures)
+2. Identify root causes of each issue
+3. Fix the implementation using your Write/Edit tools
+4. Ensure all artifact signatures match the manifest exactly
+5. Run validation commands to verify all issues are resolved
+
+The fixes should:
+- Address ALL validation errors and test failures
+- Match all artifact signatures from the manifest exactly
+- Handle errors appropriately (don't crash on invalid input)
+- Follow Python conventions (PEP 8, type hints, docstrings)
+- Fix root causes, not just symptoms
+
+
+
+Please fix the code now.
+
+
+CRITICAL: Use your file editing tools to directly write/update the files listed above.
+
+- Fix all issues in the implementation code
+- Make all changes directly using your file editing capabilities  
+- Do not just show the code - actually fix the files
+- Ensure all validation errors and test failures are resolved
+- Ensure the code matches all artifact signatures exactly

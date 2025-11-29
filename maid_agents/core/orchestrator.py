@@ -1149,6 +1149,285 @@ class MAIDOrchestrator:
             "error": error_msg,
         }
 
+    def run_fix_loop(
+        self,
+        manifest_path: str,
+        validation_errors: str = "",
+        test_errors: str = "",
+        instructions: str = "",
+        max_iterations: int = 10,
+        retry_mode: RetryMode = RetryMode.DISABLED,
+        error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
+    ) -> dict:
+        """Execute fix loop: fix validation violations, test failures, and bugs.
+
+        Similar to implementation loop but specialized for fixing existing code with
+        error context. Accepts validation errors and test failures to guide the fix.
+
+        Args:
+            manifest_path: Path to manifest file
+            validation_errors: Validation error output from maid validate
+            test_errors: Test error output from pytest or maid test
+            instructions: Optional additional instructions or context
+            max_iterations: Maximum fix iterations
+            retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
+            error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
+
+        Returns:
+            Dict with fix loop results
+        """
+        log_phase_start("FIX")
+        logger.info(f"Fixing implementation issues for manifest: {manifest_path}")
+
+        # Initialize backup manager for retry loop
+        manifest_data = self._load_manifest(manifest_path)
+        if manifest_data:
+            target_files = self._get_target_files(manifest_data)
+            backup_manager = FileBackupManager(dry_run=self.dry_run)
+            backup_manager.backup_files(target_files)
+        else:
+            backup_manager = None
+
+        # Lazy-initialize fixer if needed
+        if not hasattr(self, "fixer"):
+            from maid_agents.agents.fixer import Fixer
+
+            self.fixer = Fixer(self.claude, dry_run=self.dry_run)
+
+        iteration = 0
+        last_error = ""
+        accumulated_validation_errors = validation_errors
+        accumulated_test_errors = test_errors
+
+        # Calculate display max based on retry mode
+        # When retry is DISABLED, effective max is 1 (no retries)
+        display_max = 1 if retry_mode == RetryMode.DISABLED else max_iterations
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # Restore files based on error context mode
+            if backup_manager and self._should_restore_files(
+                iteration, error_context_mode
+            ):
+                logger.info(
+                    f"Restoring files to original state (error_context_mode={error_context_mode.value})"
+                )
+                backup_manager.restore_files()
+
+            log_iteration(iteration, display_max, "Fixing implementation issues")
+
+            # Step 1: Fix issues using Fixer agent
+            with LogContext("Step 1: Fixing implementation issues", style="info"):
+                log_agent_action(
+                    "Fixer",
+                    "fixing issues",
+                    details="validation + test errors",
+                )
+                fix_result = self.fixer.fix(
+                    manifest_path=manifest_path,
+                    validation_errors=accumulated_validation_errors,
+                    test_errors=accumulated_test_errors,
+                    instructions=instructions,
+                )
+
+                if not fix_result["success"]:
+                    # Check if error is systemic (e.g., timeout)
+                    error_msg = fix_result.get("error", "Unknown error")
+                    is_systemic, systemic_msg = self._is_systemic_error(error_msg)
+                    if is_systemic:
+                        error_msg = f"Systemic error detected (cannot be fixed by fixing):\n{systemic_msg}"
+                        logger.error(error_msg)
+                        log_phase_end("FIX", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": error_msg,
+                        }
+                    last_error = f"Fix generation failed: {error_msg}"
+                    logger.error(last_error)
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("FIX", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
+                    continue
+
+            files_modified = fix_result.get("files_modified", [])
+
+            # Step 2: Run code quality checks
+            with LogContext("Step 2: Running code quality checks", style="info"):
+                # Format code
+                format_result = self.validation_runner._run_format()
+                log_validation_result("Code Formatting", passed=format_result.success)
+
+                if not format_result.success:
+                    last_error = f"Code formatting failed: {format_result.stderr}"
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("FIX", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
+                    logger.warning(f"Iteration {iteration} failed, retrying...")
+                    continue
+
+                # Lint code
+                lint_result = self.validation_runner._run_lint()
+                log_validation_result("Code Linting", passed=lint_result.success)
+
+                if not lint_result.success:
+                    last_error = f"Linting failed: {lint_result.stderr}"
+                    # Check retry mode before continuing
+                    if not self._should_retry(
+                        iteration, max_iterations, retry_mode, last_error
+                    ):
+                        logger.error(
+                            f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                        )
+                        log_phase_end("FIX", success=False)
+                        if backup_manager:
+                            backup_manager.cleanup()
+                        return {
+                            "success": False,
+                            "iterations": iteration,
+                            "error": last_error,
+                        }
+                    logger.warning(f"Iteration {iteration} failed, retrying...")
+                    continue
+
+            # Step 3: Structural validation (maid validate)
+            with LogContext("Step 3: Running structural validation", style="info"):
+                validation_result = self.validation_runner.validate_manifest(
+                    manifest_path, use_chain=True
+                )
+                log_validation_result("Structural", passed=validation_result.success)
+
+            if not validation_result.success:
+                accumulated_validation_errors = (
+                    f"{validation_result.stderr}\n{validation_result.stdout}"
+                )
+                last_error = (
+                    f"Structural validation failed:\n{accumulated_validation_errors}"
+                )
+                # Check retry mode before continuing
+                if not self._should_retry(
+                    iteration, max_iterations, retry_mode, last_error
+                ):
+                    logger.error(
+                        f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                    )
+                    log_phase_end("FIX", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": last_error,
+                    }
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+            else:
+                # Clear validation errors if they passed
+                accumulated_validation_errors = ""
+
+            # Step 4: Behavioral test validation (maid test / validationCommand)
+            with LogContext("Step 4: Running behavioral tests", style="info"):
+                test_result = self.validation_runner.run_behavioral_tests(manifest_path)
+                log_validation_result("Behavioral", passed=test_result.success)
+
+            # Check for systemic errors that cannot be fixed
+            if not test_result.success:
+                test_output = f"{test_result.stdout}\n{test_result.stderr}"
+                is_systemic, systemic_msg = self._is_systemic_error(test_output)
+                if is_systemic:
+                    # Bail out immediately - this is not a fix issue
+                    error_msg = f"Systemic error detected (cannot be fixed by fixing):\n{systemic_msg}"
+                    logger.error(error_msg)
+                    log_phase_end("FIX", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": error_msg,
+                    }
+
+            if test_result.success:
+                # Fix complete - all validations pass!
+                logger.info(f"Fix complete in {iteration} iteration(s)!")
+                log_phase_end("FIX", success=True)
+                if backup_manager:
+                    backup_manager.cleanup()
+                return {
+                    "success": True,
+                    "iterations": iteration,
+                    "files_modified": files_modified,
+                    "error": None,
+                }
+            else:
+                # Tests failed - provide comprehensive feedback for next iteration
+                test_output = f"{test_result.stdout}\n{test_result.stderr}".strip()
+                if test_result.errors:
+                    error_summary = "\n".join(test_result.errors)
+                    accumulated_test_errors = f"Tests failed:\n{error_summary}\n\nFull test output:\n{test_output}"
+                else:
+                    accumulated_test_errors = (
+                        f"Tests failed. Full test output:\n{test_output}"
+                    )
+
+                last_error = accumulated_test_errors
+                # Check retry mode before continuing
+                if not self._should_retry(
+                    iteration, max_iterations, retry_mode, last_error
+                ):
+                    logger.error(
+                        f"Stopping after iteration {iteration} (retry_mode={retry_mode.value})"
+                    )
+                    log_phase_end("FIX", success=False)
+                    if backup_manager:
+                        backup_manager.cleanup()
+                    return {
+                        "success": False,
+                        "iterations": iteration,
+                        "error": last_error,
+                    }
+                logger.warning(f"Iteration {iteration} failed, retrying...")
+                continue
+
+        # Max iterations reached without success
+        error_msg = f"Fix loop failed after {max_iterations} iterations. Last error: {last_error}"
+        logger.error(error_msg)
+        log_phase_end("FIX", success=False)
+        if backup_manager:
+            backup_manager.cleanup()
+        return {
+            "success": False,
+            "iterations": iteration,
+            "error": error_msg,
+        }
+
     def _is_systemic_error(self, test_output: str) -> tuple[bool, str]:
         """Detect if test failure is due to systemic issues, not implementation.
 
