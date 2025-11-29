@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-11-29
+
+### Added
+- **Retry Mode Control**: New `RetryMode` enum with three modes for implementation and refactoring loops
+  - `AUTO`: Automatic retry on failure (default)
+  - `DISABLED`: No retries, fail immediately on first error
+  - `CONFIRM`: Ask user before each retry attempt
+  - CLI flags: `--retry-mode {auto,disabled,confirm}` for `implement` and `refactor` commands
+
+- **Error Context Mode**: New `ErrorContextMode` enum for controlling file restoration behavior during retries
+  - `INCREMENTAL`: Build on previous attempt, preserve changes between iterations (default)
+  - `FRESH_START`: Restore to original state before each retry
+  - CLI flags: `--error-context {incremental,fresh-start}` for `implement` and `refactor` commands
+
+### Fixed
+- Iteration labels now correctly reflect retry mode behavior:
+  - Shows "Iteration X of Y" for AUTO mode
+  - Shows "Iteration X (DISABLED after this)" for DISABLED mode
+  - Shows "Iteration X (awaiting confirmation)" for CONFIRM mode
+
+### Performance
+- **5x faster test suite**: Improved test performance from ~4.80s to ~0.95s
+  - Added `dry_run` flag to all agents to skip subprocess calls during testing
+  - Agents now skip expensive `maid validate` and `maid schema` subprocess calls in dry_run mode
+  - Specific improvements:
+    - `test_run_full_workflow_with_different_goals`: 2.02s → 0.02s (100x faster)
+    - `test_run_full_workflow_method_exists`: 0.68s → 0.01s (68x faster)
+    - `test_orchestrator_workflow_integration`: 0.67s → 0.01s (67x faster)
+  - All 292 tests pass with no test file modifications required
+
 ## [0.1.1] - 2025-11-29
 
 ### Fixed
@@ -140,5 +170,6 @@ This is the first public release of MAID Agents, providing automated orchestrati
 - 19 prompt template files
 - Alpha release status
 
+[0.2.0]: https://github.com/mamertofabian/maid-agents/releases/tag/v0.2.0
 [0.1.1]: https://github.com/mamertofabian/maid-agents/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mamertofabian/maid-agents/releases/tag/v0.1.0
