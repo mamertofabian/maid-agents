@@ -895,20 +895,14 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             )
             sys.exit(1)
 
-        # Check that at least one error source is provided
-        if not validation_errors and not test_errors:
-            _print_error(
-                "No errors provided",
-                suggestion="Provide at least one of --validation-errors or --test-errors to guide the fix",
-            )
-            sys.exit(1)
-
         if not args.quiet:
             error_summary = []
             if validation_errors:
                 error_summary.append("[dim]Validation errors:[/dim] provided")
             if test_errors:
                 error_summary.append("[dim]Test errors:[/dim] provided")
+            if not validation_errors and not test_errors:
+                error_summary.append("[dim]Test errors:[/dim] none provided")
 
             retry_info = f"[dim]Retry mode:[/dim] {retry_mode.value}, [dim]Error context:[/dim] {error_context_mode.value}"
             console.print(
