@@ -1,0 +1,41 @@
+{
+  "version": "1",
+  "goal": "Add run_fix_loop method to MAIDOrchestrator and fix CLI command for Fixer integration",
+  "description": "Integrate the Fixer agent into the orchestrator by adding run_fix_loop method that coordinates the fix workflow with retry and backup handling. Add the fix CLI command to make it accessible via ccmaid.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/cli/main.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_031_fixer_agent.py",
+    "maid_agents/agents/fixer.py",
+    "maid_agents/core/validation_runner.py",
+    "maid_agents/core/file_backup.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_fix_loop",
+        "class": "MAIDOrchestrator",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "validation_errors", "type": "str", "default": "\"\""},
+          {"name": "test_errors", "type": "str", "default": "\"\""},
+          {"name": "instructions", "type": "str", "default": "\"\""},
+          {"name": "max_iterations", "type": "int", "default": "10"},
+          {"name": "retry_mode", "type": "RetryMode", "default": "RetryMode.DISABLED"},
+          {"name": "error_context_mode", "type": "ErrorContextMode", "default": "ErrorContextMode.INCREMENTAL"}
+        ],
+        "returns": {"type": "dict"}
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_031_fixer_agent.py::TestOrchestratorIntegration",
+    "-v"
+  ]
+}

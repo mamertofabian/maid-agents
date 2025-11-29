@@ -8,10 +8,7 @@
     "maid_agents/templates/system/fixer.txt",
     "maid_agents/templates/user/fixer.txt"
   ],
-  "editableFiles": [
-    "maid_agents/cli/main.py",
-    "maid_agents/core/orchestrator.py"
-  ],
+  "editableFiles": [],
   "readonlyFiles": [
     "tests/test_task_031_fixer_agent.py",
     "maid_agents/agents/fixer.py",
@@ -22,50 +19,40 @@
     "maid_agents/config/template_manager.py"
   ],
   "expectedArtifacts": {
-    "file": "maid_agents/core/orchestrator.py",
+    "file": "maid_agents/agents/fixer.py",
     "contains": [
       {
+        "type": "class",
+        "name": "Fixer"
+      },
+      {
         "type": "function",
-        "name": "run_fix_loop",
-        "description": "Execute fix loop with retry and backup handling for fixing validation violations, test failures, and bugs",
-        "class": "MAIDOrchestrator",
+        "name": "__init__",
+        "class": "Fixer",
         "args": [
-          {
-            "name": "manifest_path",
-            "type": "str"
-          },
-          {
-            "name": "validation_errors",
-            "type": "str",
-            "default": "\"\""
-          },
-          {
-            "name": "test_errors",
-            "type": "str",
-            "default": "\"\""
-          },
-          {
-            "name": "instructions",
-            "type": "str",
-            "default": "\"\""
-          },
-          {
-            "name": "max_iterations",
-            "type": "int",
-            "default": "10"
-          },
-          {
-            "name": "retry_mode",
-            "type": "RetryMode",
-            "default": "RetryMode.DISABLED"
-          },
-          {
-            "name": "error_context_mode",
-            "type": "ErrorContextMode",
-            "default": "ErrorContextMode.INCREMENTAL"
-          }
+          {"name": "claude", "type": "ClaudeWrapper"},
+          {"name": "dry_run", "type": "bool", "default": "False"}
         ],
-        "returns": "dict"
+        "returns": {"type": "None"}
+      },
+      {
+        "type": "function",
+        "name": "execute",
+        "class": "Fixer",
+        "args": [],
+        "returns": {"type": "dict"}
+      },
+      {
+        "type": "function",
+        "name": "fix",
+        "class": "Fixer",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "validation_errors", "type": "str", "default": "\"\""},
+          {"name": "test_errors", "type": "str", "default": "\"\""},
+          {"name": "instructions", "type": "str", "default": "\"\""}
+        ],
+        "returns": {"type": "dict"}
       }
     ]
   },
