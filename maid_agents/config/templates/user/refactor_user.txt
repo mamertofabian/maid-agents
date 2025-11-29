@@ -50,4 +50,6 @@ Focus on these improvements:
 - Do NOT add new features
 - Do NOT modify test files
 
+${additional_instructions_section}
+
 Please refactor the code now to improve quality while maintaining all existing behavior.

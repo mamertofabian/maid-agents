@@ -132,7 +132,10 @@ def test_integration_claude_wrapper_and_template_manager():
     try:
         # Get split prompts
         prompts = template_manager.render_for_agent(
-            "manifest_creation", goal="Test feature", task_number="999"
+            "manifest_creation",
+            goal="Test feature",
+            task_number="999",
+            additional_instructions_section="",
         )
 
         # Create ClaudeWrapper with system prompt

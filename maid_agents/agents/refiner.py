@@ -31,7 +31,11 @@ class Refiner(BaseAgent):
         return {"status": "ready", "agent": "Refiner"}
 
     def refine(
-        self, manifest_path: str, refinement_goal: str, validation_feedback: str = ""
+        self,
+        manifest_path: str,
+        refinement_goal: str,
+        validation_feedback: str = "",
+        instructions: str = "",
     ) -> dict:
         """Refine manifest and tests based on user goal and validation feedback.
 
@@ -39,6 +43,7 @@ class Refiner(BaseAgent):
             manifest_path: Path to manifest file
             refinement_goal: User's refinement objectives
             validation_feedback: Error messages from previous validation iteration
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with refined manifest data, test code, improvements list, and error
@@ -94,6 +99,7 @@ class Refiner(BaseAgent):
             test_contents,
             refinement_goal,
             validation_feedback,
+            instructions,
         )
 
         if not response.success:
@@ -282,6 +288,7 @@ class Refiner(BaseAgent):
         test_contents: Dict[str, str],
         refinement_goal: str,
         validation_feedback: str,
+        instructions: str = "",
     ):
         """Generate refinement using Claude API with split prompts.
 
@@ -291,6 +298,7 @@ class Refiner(BaseAgent):
             test_contents: Dict of test file paths to contents
             refinement_goal: User's refinement objectives
             validation_feedback: Validation errors from previous iteration
+            instructions: Optional additional instructions or context
 
         Returns:
             ClaudeResponse object with generation result
@@ -303,6 +311,18 @@ class Refiner(BaseAgent):
             list(test_contents.keys())[0] if test_contents else "No test file"
         )
 
+        # Build additional instructions section
+        if instructions:
+            additional_instructions_section = f"""
+## Additional Instructions
+
+{instructions}
+
+Please incorporate these instructions when refining.
+"""
+        else:
+            additional_instructions_section = ""
+
         prompts = template_manager.render_for_agent(
             "refine",
             manifest_path=manifest_path,
@@ -313,6 +333,7 @@ class Refiner(BaseAgent):
                 if validation_feedback
                 else "No validation errors from previous iteration."
             ),
+            additional_instructions_section=additional_instructions_section,
         )
 
         # Build list of files Claude Code should update

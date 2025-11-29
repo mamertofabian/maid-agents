@@ -39,12 +39,15 @@ class Refactorer(BaseAgent):
         """
         return {"status": "ready", "agent": "Refactorer"}
 
-    def refactor(self, manifest_path: str, validation_feedback: str = "") -> dict:
+    def refactor(
+        self, manifest_path: str, validation_feedback: str = "", instructions: str = ""
+    ) -> dict:
         """Refactor code while maintaining tests and manifest compliance.
 
         Args:
             manifest_path: Path to manifest file
             validation_feedback: Optional error messages from previous validation/test failures
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with refactoring status, improvements list, and refactored code
@@ -62,7 +65,11 @@ class Refactorer(BaseAgent):
 
         # Generate refactoring via Claude Code
         refactoring_result = self._generate_refactoring(
-            manifest_data, file_contents, validation_feedback, manifest_path
+            manifest_data,
+            file_contents,
+            validation_feedback,
+            manifest_path,
+            instructions,
         )
         if not refactoring_result["success"]:
             return refactoring_result
@@ -210,6 +217,7 @@ class Refactorer(BaseAgent):
         file_contents: Dict[str, str],
         validation_feedback: str,
         manifest_path: str = "",
+        instructions: str = "",
     ) -> Dict[str, Any]:
         """Generate refactoring through Claude API with split prompts.
 
@@ -218,6 +226,7 @@ class Refactorer(BaseAgent):
             file_contents: Current file contents
             validation_feedback: Previous validation errors
             manifest_path: Path to the manifest file
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with success status, improvements, refactored files, and raw response
@@ -234,12 +243,25 @@ class Refactorer(BaseAgent):
         test_files = [f for f in readonly_files if "test_" in f]
         test_file = test_files[0] if test_files else "tests/test_*.py"
 
+        # Build additional instructions section
+        if instructions:
+            additional_instructions_section = f"""
+## Additional Instructions
+
+{instructions}
+
+Please incorporate these instructions when refactoring.
+"""
+        else:
+            additional_instructions_section = ""
+
         prompts = template_manager.render_for_agent(
             "refactor",
             manifest_path=manifest_path,
             goal=goal,
             files_to_refactor=files_section,
             test_file=test_file,
+            additional_instructions_section=additional_instructions_section,
         )
 
         # Add file path instruction to user message

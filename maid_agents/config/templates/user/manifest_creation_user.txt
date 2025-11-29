@@ -122,4 +122,6 @@ Goal: "Add logging to orchestrator and agents"
 - Generate appropriate slug for filename from the goal
 - Use Write tool to create the manifest file
 
+${additional_instructions_section}
+
 Please create the manifest now.

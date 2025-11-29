@@ -39,7 +39,11 @@ class ManifestArchitect(BaseAgent):
         return {"status": "ready", "agent": "ManifestArchitect"}
 
     def create_manifest(
-        self, goal: str, task_number: int, previous_errors: Optional[str] = None
+        self,
+        goal: str,
+        task_number: int,
+        previous_errors: Optional[str] = None,
+        instructions: str = "",
     ) -> dict:
         """Create manifest from goal description.
 
@@ -47,6 +51,7 @@ class ManifestArchitect(BaseAgent):
             goal: High-level goal description
             task_number: Task number for manifest naming
             previous_errors: Optional errors from previous attempts to incorporate
+            instructions: Optional additional instructions or context
 
         Returns:
             dict with manifest data and path
@@ -58,7 +63,7 @@ class ManifestArchitect(BaseAgent):
 
         # Generate manifest using Claude Code
         response = self._generate_manifest_with_claude(
-            goal, task_number, previous_errors
+            goal, task_number, previous_errors, instructions
         )
         if not response.success:
             return self._build_error_response(response.error)
@@ -78,7 +83,11 @@ class ManifestArchitect(BaseAgent):
     # ==================== Core Generation Methods ====================
 
     def _generate_manifest_with_claude(
-        self, goal: str, task_number: int, previous_errors: Optional[str] = None
+        self,
+        goal: str,
+        task_number: int,
+        previous_errors: Optional[str] = None,
+        instructions: str = "",
     ):
         """Generate manifest using Claude API with split prompts.
 
@@ -86,6 +95,7 @@ class ManifestArchitect(BaseAgent):
             goal: High-level goal description
             task_number: Task number for manifest
             previous_errors: Optional errors from previous attempts
+            instructions: Optional additional instructions or context
 
         Returns:
             ClaudeResponse object with generation result
@@ -109,12 +119,27 @@ Ensure the generated manifest strictly complies with this schema.
                 "Schema retrieval failed - proceeding without schema context"
             )
 
+        # Build additional instructions section
+        if instructions:
+            additional_instructions_section = f"""
+## Additional Instructions
+
+{instructions}
+
+Please incorporate these instructions when creating the manifest.
+"""
+        else:
+            additional_instructions_section = ""
+
         # Get split prompts (system + user)
         template_manager = get_template_manager()
         manifests_dir = os.path.abspath("manifests")
 
         prompts = template_manager.render_for_agent(
-            "manifest_creation", goal=goal, task_number=f"{task_number:03d}"
+            "manifest_creation",
+            goal=goal,
+            task_number=f"{task_number:03d}",
+            additional_instructions_section=additional_instructions_section,
         )
 
         # Add previous errors context if provided

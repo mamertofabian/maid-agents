@@ -35,7 +35,7 @@ class ClaudeWrapper:
     ALLOWED_TOOLS = [
         "Bash(python -m pytest:*)",
         "Bash(python tests/:*)",
-        "Bash(maid init:*)" "Bash(maid test:*)",
+        "Bash(maid init:*)Bash(maid test:*)",
         "Bash(maid validate:*)",
         "Bash(maid schema:*)",
         "Bash(maid snapshot:*)",

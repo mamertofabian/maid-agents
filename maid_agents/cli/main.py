@@ -139,6 +139,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         default=None,
         help="Maximum planning iterations (default: from config or 10)",
     )
+    plan_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide planning (optional)",
+    )
 
     # Implement subcommand
     implement_parser = subparsers.add_parser(
@@ -166,6 +172,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         "--fresh-start",
         action="store_true",
         help="Restore files to original state on each retry (default: build on previous attempt)",
+    )
+    implement_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide implementation (optional)",
     )
 
     # Refactor subcommand
@@ -195,6 +207,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         action="store_true",
         help="Restore files to original state on each retry (default: build on previous attempt)",
     )
+    refactor_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide refactoring (optional)",
+    )
 
     # Refine subcommand
     refine_parser = subparsers.add_parser(
@@ -212,6 +230,12 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=int,
         default=None,
         help="Maximum refinement iterations (default: from config or 5)",
+    )
+    refine_parser.add_argument(
+        "--instructions",
+        type=str,
+        default="",
+        help="Additional instructions or context to guide refinement (optional)",
     )
 
     # Generate-test subcommand
@@ -339,7 +363,9 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         ) as progress:
             progress.add_task("Planning...", total=None)
             result = orchestrator.run_planning_loop(
-                goal=args.goal, max_iterations=max_iterations
+                goal=args.goal,
+                max_iterations=max_iterations,
+                instructions=args.instructions,
             )
 
         if result["success"]:
@@ -421,6 +447,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 max_iterations=max_iterations,
                 retry_mode=retry_mode,
                 error_context_mode=error_context_mode,
+                instructions=args.instructions,
             )
 
         if result["success"]:
@@ -501,6 +528,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 max_iterations=max_iterations,
                 retry_mode=retry_mode,
                 error_context_mode=error_context_mode,
+                instructions=args.instructions,
             )
 
         if result["success"]:
@@ -562,6 +590,7 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
                 manifest_path=manifest_path,
                 refinement_goal=args.goal,
                 max_iterations=max_iterations,
+                instructions=args.instructions,
             )
 
         if result["success"]:

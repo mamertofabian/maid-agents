@@ -50,4 +50,6 @@ Based on the validation feedback, focus on:
 
 The goal is to have both structural validation (manifest) and behavioral validation (tests) pass completely.
 
+${additional_instructions_section}
+
 Please refine the manifest and tests now to address these issues.

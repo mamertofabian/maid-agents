@@ -40,4 +40,6 @@ The implementation should:
 - Follow Python conventions (PEP 8, type hints, docstrings)
 - Be the simplest code that satisfies the tests
 
+${additional_instructions_section}
+
 Please implement the code now.

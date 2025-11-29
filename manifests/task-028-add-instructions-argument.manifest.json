@@ -1,0 +1,83 @@
+{
+  "goal": "Add optional --instructions argument to plan, implement, refactor, and refine commands to provide additional context/guidance",
+  "description": "Adds an optional --instructions CLI argument to the plan, implement, refactor, and refine commands. Instructions flow from CLI through orchestrator to agents and into prompt templates, allowing users to provide additional context or guidance without modifying the goal itself. Maintains backward compatibility with default empty string.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "maid_agents/core/orchestrator.py",
+    "maid_agents/agents/manifest_architect.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/agents/refiner.py",
+    "maid_agents/config/templates/user/manifest_creation_user.txt",
+    "maid_agents/config/templates/user/implementation_user.txt",
+    "maid_agents/config/templates/user/refactor_user.txt",
+    "maid_agents/config/templates/user/refine_user.txt",
+    "maid_agents/config/templates/TEMPLATE_VARIABLES.md"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_028_cli_instructions.py",
+    "tests/test_task_028_orchestrator_instructions.py",
+    "tests/test_task_028_agent_instructions.py",
+    "tests/test_task_028_template_instructions.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/core/orchestrator.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "run_planning_loop",
+        "class": "MAIDOrchestrator",
+        "description": "Execute planning loop with optional instructions parameter",
+        "args": [
+          {"name": "goal", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "instructions", "type": "str"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_implementation_loop",
+        "class": "MAIDOrchestrator",
+        "description": "Execute implementation loop with optional instructions parameter",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"},
+          {"name": "error_context_mode", "type": "ErrorContextMode"},
+          {"name": "instructions", "type": "str"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_refactoring_loop",
+        "class": "MAIDOrchestrator",
+        "description": "Execute refactoring loop with optional instructions parameter",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "retry_mode", "type": "RetryMode"},
+          {"name": "error_context_mode", "type": "ErrorContextMode"},
+          {"name": "instructions", "type": "str"}
+        ],
+        "returns": "dict"
+      },
+      {
+        "type": "function",
+        "name": "run_refinement_loop",
+        "class": "MAIDOrchestrator",
+        "description": "Execute refinement loop with optional instructions parameter",
+        "args": [
+          {"name": "manifest_path", "type": "str"},
+          {"name": "refinement_goal", "type": "str"},
+          {"name": "max_iterations", "type": "int"},
+          {"name": "instructions", "type": "str"}
+        ],
+        "returns": "dict"
+      }
+    ]
+  },
+  "validationCommand": ["pytest", "tests/test_task_028_cli_instructions.py", "tests/test_task_028_orchestrator_instructions.py", "tests/test_task_028_agent_instructions.py", "tests/test_task_028_template_instructions.py", "-v"]
+}

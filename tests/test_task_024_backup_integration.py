@@ -112,7 +112,7 @@ class TestImplementationLoopBackup:
         mock_developer = MagicMock()
         mock_developer_class.return_value = mock_developer
 
-        def modify_file_side_effect(manifest_path, test_errors):
+        def modify_file_side_effect(manifest_path, test_errors, instructions=""):
             # Simulate developer modifying the file
             impl_file.write_text(f"# Modified iteration\n{test_errors}\n")
             return {
@@ -280,7 +280,9 @@ class TestRefactoringLoopBackup:
 
         mock_refactorer = MagicMock()
 
-        def refactor_file_side_effect(manifest_path, validation_feedback):
+        def refactor_file_side_effect(
+            manifest_path, validation_feedback, instructions=""
+        ):
             # Simulate refactorer modifying the file
             impl_file.write_text(f"# Refactored\n{validation_feedback}\n")
             return {

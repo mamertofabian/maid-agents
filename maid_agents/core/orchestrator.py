@@ -190,12 +190,15 @@ class MAIDOrchestrator:
         """
         return self._state
 
-    def run_planning_loop(self, goal: str, max_iterations: int = 10) -> dict:
+    def run_planning_loop(
+        self, goal: str, max_iterations: int = 10, instructions: str = ""
+    ) -> dict:
         """Execute planning loop: manifest creation + test generation with validation.
 
         Args:
             goal: High-level goal description
             max_iterations: Maximum planning iterations
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with planning loop results
@@ -221,7 +224,10 @@ class MAIDOrchestrator:
                     "ManifestArchitect", "creating manifest", details=goal[:50]
                 )
                 manifest_result = self.manifest_architect.create_manifest(
-                    goal=goal, task_number=task_number, previous_errors=last_error
+                    goal=goal,
+                    task_number=task_number,
+                    previous_errors=last_error,
+                    instructions=instructions,
                 )
 
                 if not manifest_result["success"]:
@@ -406,6 +412,7 @@ class MAIDOrchestrator:
         max_iterations: int = 20,
         retry_mode: RetryMode = RetryMode.DISABLED,
         error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
+        instructions: str = "",
     ) -> dict:
         """Execute implementation loop: code generation until tests pass.
 
@@ -414,6 +421,7 @@ class MAIDOrchestrator:
             max_iterations: Maximum implementation iterations
             retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
             error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with implementation loop results
@@ -473,7 +481,9 @@ class MAIDOrchestrator:
                     details=f"fixing {len(test_errors[:200])}+ char errors",
                 )
                 impl_result = developer.implement(
-                    manifest_path=manifest_path, test_errors=test_errors
+                    manifest_path=manifest_path,
+                    test_errors=test_errors,
+                    instructions=instructions,
                 )
 
                 if not impl_result["success"]:
@@ -661,10 +671,10 @@ class MAIDOrchestrator:
             return False
         elif retry_mode == RetryMode.CONFIRM:
             # Ask user before retrying
-            logger.info(f"\n{'='*80}")
+            logger.info(f"\n{'=' * 80}")
             logger.error(f"Iteration {current_iteration} failed with error:")
             logger.error(error_msg)
-            logger.info(f"{'='*80}\n")
+            logger.info(f"{'=' * 80}\n")
 
             try:
                 response = (
@@ -711,7 +721,11 @@ class MAIDOrchestrator:
         return True
 
     def run_refinement_loop(
-        self, manifest_path: str, refinement_goal: str, max_iterations: int = 5
+        self,
+        manifest_path: str,
+        refinement_goal: str,
+        max_iterations: int = 5,
+        instructions: str = "",
     ) -> dict:
         """Execute refinement loop: refine manifest and tests with validation.
 
@@ -719,6 +733,7 @@ class MAIDOrchestrator:
             manifest_path: Path to manifest file to refine
             refinement_goal: User's refinement objectives/goals
             max_iterations: Maximum refinement iterations
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with refinement loop results
@@ -751,6 +766,7 @@ class MAIDOrchestrator:
                     manifest_path=manifest_path,
                     refinement_goal=refinement_goal,
                     validation_feedback=last_error,
+                    instructions=instructions,
                 )
 
                 if not refine_result["success"]:
@@ -833,6 +849,7 @@ class MAIDOrchestrator:
         max_iterations: int = 10,
         retry_mode: RetryMode = RetryMode.DISABLED,
         error_context_mode: ErrorContextMode = ErrorContextMode.INCREMENTAL,
+        instructions: str = "",
     ) -> dict:
         """Execute refactoring loop: refactor code with validation and testing.
 
@@ -841,6 +858,7 @@ class MAIDOrchestrator:
             max_iterations: Maximum refactoring iterations
             retry_mode: Retry behavior (AUTO, DISABLED, or CONFIRM). Default is DISABLED.
             error_context_mode: Error context mode (INCREMENTAL or FRESH_START). Default is INCREMENTAL.
+            instructions: Optional additional instructions or context
 
         Returns:
             Dict with refactoring loop results
@@ -893,6 +911,7 @@ class MAIDOrchestrator:
                 refactor_result = self.refactorer.refactor(
                     manifest_path=manifest_path,
                     validation_feedback=last_error if last_error else "",
+                    instructions=instructions,
                 )
 
                 if not refactor_result["success"]:

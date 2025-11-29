@@ -23,7 +23,10 @@ def test_template_manager_render_split_returns_tuple():
     # Test with a template that should exist after implementation
     try:
         result = template_manager.render_split(
-            "manifest_creation", goal="Test goal", task_number="001"
+            "manifest_creation",
+            goal="Test goal",
+            task_number="001",
+            additional_instructions_section="",
         )
         assert isinstance(result, tuple)
         assert len(result) == 2
@@ -48,7 +51,10 @@ def test_template_manager_render_for_agent_returns_dict():
 
     try:
         result = template_manager.render_for_agent(
-            "manifest_creation", goal="Test goal", task_number="001"
+            "manifest_creation",
+            goal="Test goal",
+            task_number="001",
+            additional_instructions_section="",
         )
         assert isinstance(result, dict)
         assert "system_prompt" in result
@@ -66,7 +72,11 @@ def test_template_manager_render_for_agent_use_split_false_backward_compatible()
 
     try:
         result = template_manager.render_for_agent(
-            "manifest_creation", use_split=False, goal="Test goal", task_number="001"
+            "manifest_creation",
+            use_split=False,
+            goal="Test goal",
+            task_number="001",
+            additional_instructions_section="",
         )
         assert isinstance(result, dict)
         assert "system_prompt" in result
@@ -85,7 +95,10 @@ def test_template_manager_render_split_substitutes_variables():
 
     try:
         system_prompt, user_message = template_manager.render_split(
-            "manifest_creation", goal="Add authentication", task_number="042"
+            "manifest_creation",
+            goal="Add authentication",
+            task_number="042",
+            additional_instructions_section="",
         )
 
         # Both parts should have variables substituted

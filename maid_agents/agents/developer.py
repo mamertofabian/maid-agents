@@ -39,13 +39,16 @@ class Developer(BaseAgent):
         """
         return {"status": "ready", "agent": "Developer"}
 
-    def implement(self, manifest_path: str, test_errors: str = "") -> dict:
+    def implement(
+        self, manifest_path: str, test_errors: str = "", instructions: str = ""
+    ) -> dict:
         """Implement code to pass behavioral tests based on manifest specifications.
 
         Args:
             manifest_path: Path to the MAID manifest file containing task specifications.
             test_errors: Optional test error output from previous implementation attempts,
                         used to guide corrective implementation.
+            instructions: Optional additional instructions or context
 
         Returns:
             Dictionary containing:
@@ -62,7 +65,9 @@ class Developer(BaseAgent):
             )
 
         # Generate implementation with split prompts
-        response = self._generate_implementation_with_claude(manifest_data, test_errors)
+        response = self._generate_implementation_with_claude(
+            manifest_data, test_errors, instructions
+        )
         if not response.success:
             return self._create_error_response(response.error)
 
@@ -149,13 +154,14 @@ class Developer(BaseAgent):
         return creatable + editable
 
     def _generate_implementation_with_claude(
-        self, manifest_data: Dict[str, Any], test_errors: str
+        self, manifest_data: Dict[str, Any], test_errors: str, instructions: str = ""
     ):
         """Generate implementation using Claude API with split prompts.
 
         Args:
             manifest_data: Parsed manifest data
             test_errors: Test error output from previous attempts
+            instructions: Optional additional instructions or context
 
         Returns:
             ClaudeResponse object with generation result
@@ -170,6 +176,18 @@ class Developer(BaseAgent):
         test_output = self._format_test_output(test_errors)
         manifest_filename = self._generate_manifest_filename(goal)
 
+        # Build additional instructions section
+        if instructions:
+            additional_instructions_section = f"""
+## Additional Instructions
+
+{instructions}
+
+Please incorporate these instructions when implementing.
+"""
+        else:
+            additional_instructions_section = ""
+
         # Get split prompts (system + user)
         prompts = template_manager.render_for_agent(
             "implementation",
@@ -178,6 +196,7 @@ class Developer(BaseAgent):
             test_output=test_output,
             artifacts_summary=artifacts_summary,
             files_to_modify=files_to_modify_str,
+            additional_instructions_section=additional_instructions_section,
         )
 
         # Add file path instruction to user message
