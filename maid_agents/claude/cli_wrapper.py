@@ -55,6 +55,7 @@ class ClaudeWrapper:
         timeout: int = DEFAULT_TIMEOUT,
         temperature: float = DEFAULT_TEMPERATURE,
         system_prompt: Optional[str] = None,
+        bypass_permissions: bool = False,
     ) -> None:
         """Initialize Claude wrapper.
 
@@ -64,12 +65,14 @@ class ClaudeWrapper:
             timeout: Request timeout in seconds (default: 300)
             temperature: Sampling temperature 0.0-1.0 (default: 0.0 for deterministic)
             system_prompt: Additional system prompt to append (uses --append-system-prompt)
+            bypass_permissions: If True, adds --dangerously-skip-permissions flag (default: False)
         """
         self.mock_mode = mock_mode
         self.model = model
         self.timeout = timeout
         self.temperature = temperature
         self.system_prompt = system_prompt
+        self.bypass_permissions = bypass_permissions
         self.logger = logger
 
     def generate(self, prompt: str) -> ClaudeResponse:
@@ -98,6 +101,10 @@ class ClaudeWrapper:
         self.logger.info(
             f"🤖 Calling Claude ({self.model}, timeout={self.timeout}s, temp={self.temperature})"
         )
+        if self.bypass_permissions:
+            self.logger.warning(
+                "⚠️  BYPASS PERMISSIONS: Running with --dangerously-skip-permissions flag"
+            )
         prompt_preview = self._create_preview(prompt)
         self.logger.debug(f"Prompt preview: {prompt_preview}")
 
@@ -175,6 +182,10 @@ class ClaudeWrapper:
             "--allowedTools",
             ",".join(self.ALLOWED_TOOLS),
         ]
+
+        # Add bypass permissions flag if enabled
+        if self.bypass_permissions:
+            command.append("--dangerously-skip-permissions")
 
         # Add system prompt if provided
         if self.system_prompt:

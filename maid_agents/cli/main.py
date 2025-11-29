@@ -150,6 +150,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         default="",
         help="Additional instructions or context to guide planning (optional)",
     )
+    plan_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
+    )
 
     # Implement subcommand
     implement_parser = subparsers.add_parser(
@@ -183,6 +188,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=str,
         default="",
         help="Additional instructions or context to guide implementation (optional)",
+    )
+    implement_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
     )
 
     # Refactor subcommand
@@ -218,6 +228,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         default="",
         help="Additional instructions or context to guide refactoring (optional)",
     )
+    refactor_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
+    )
 
     # Refine subcommand
     refine_parser = subparsers.add_parser(
@@ -241,6 +256,11 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
         type=str,
         default="",
         help="Additional instructions or context to guide refinement (optional)",
+    )
+    refine_parser.add_argument(
+        "--bypass-permissions",
+        action="store_true",
+        help="Bypass Claude permissions (adds --dangerously-skip-permissions to Claude CLI)",
     )
 
     # Generate-test subcommand
@@ -300,12 +320,16 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
     # Determine mock mode: CLI flag overrides config file
     mock_mode = args.mock if args.mock else config.mock_mode
 
+    # Determine bypass_permissions from args (default to False if not present)
+    bypass_permissions = getattr(args, "bypass_permissions", False)
+
     # Create Claude wrapper with config values and orchestrator
     claude = ClaudeWrapper(
         mock_mode=mock_mode,
         model=config.claude_model,
         timeout=config.claude_timeout,
         temperature=config.claude_temperature,
+        bypass_permissions=bypass_permissions,
     )
     orchestrator = MAIDOrchestrator(claude=claude)
 
@@ -647,13 +671,15 @@ For more information, visit: https://github.com/mamertofabian/maid-agents
             )
 
         # Create test generator
-        claude = ClaudeWrapper(
+        # Note: generate-test doesn't have --bypass-permissions flag, so always use False
+        claude_gen = ClaudeWrapper(
             mock_mode=mock_mode,
             model=config.claude_model,
             timeout=config.claude_timeout,
             temperature=config.claude_temperature,
+            bypass_permissions=False,
         )
-        generator = TestGenerator(claude=claude)
+        generator = TestGenerator(claude=claude_gen)
 
         with Progress(
             SpinnerColumn(),

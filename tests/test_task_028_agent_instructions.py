@@ -87,6 +87,7 @@ class TestAgentInstructions:
         mock_claude.model = "test-model"
         mock_claude.timeout = 300
         mock_claude.temperature = 0.0
+        mock_claude.bypass_permissions = False
         developer = Developer(claude=mock_claude, dry_run=True)
 
         # Mock manifest loading
@@ -129,6 +130,7 @@ class TestAgentInstructions:
         mock_claude.model = "test-model"
         mock_claude.timeout = 300
         mock_claude.temperature = 0.0
+        mock_claude.bypass_permissions = False
         refactorer = Refactorer(claude=mock_claude, dry_run=True)
 
         manifest_data = {

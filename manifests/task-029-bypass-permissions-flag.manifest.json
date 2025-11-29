@@ -1,0 +1,91 @@
+{
+  "version": "1",
+  "goal": "Update the agents CLI to accept a flag/option to bypass Claude permissions altogether",
+  "description": "Add a --bypass-permissions flag to the CLI commands (plan, implement, refactor, refine) that adds --dangerously-skip-permissions to the Claude CLI wrapper command. Display a warning in the agent output header when this flag is enabled. This flag will be implemented for developer and refactorer agents.",
+  "taskType": "edit",
+  "editableFiles": [
+    "maid_agents/cli/main.py",
+    "maid_agents/claude/cli_wrapper.py",
+    "maid_agents/agents/developer.py",
+    "maid_agents/agents/refactorer.py",
+    "maid_agents/core/orchestrator.py"
+  ],
+  "readonlyFiles": [
+    "tests/test_task_029_bypass_permissions_flag.py"
+  ],
+  "expectedArtifacts": {
+    "file": "maid_agents/claude/cli_wrapper.py",
+    "contains": [
+      {
+        "type": "function",
+        "name": "__init__",
+        "class": "ClaudeWrapper",
+        "description": "Initialize Claude wrapper with optional bypass_permissions flag",
+        "args": [
+          {
+            "name": "mock_mode",
+            "type": "bool",
+            "default": "True"
+          },
+          {
+            "name": "model",
+            "type": "str",
+            "default": "DEFAULT_MODEL"
+          },
+          {
+            "name": "timeout",
+            "type": "int",
+            "default": "DEFAULT_TIMEOUT"
+          },
+          {
+            "name": "temperature",
+            "type": "float",
+            "default": "DEFAULT_TEMPERATURE"
+          },
+          {
+            "name": "system_prompt",
+            "type": "Optional[str]",
+            "default": "None"
+          },
+          {
+            "name": "bypass_permissions",
+            "type": "bool",
+            "default": "False"
+          }
+        ],
+        "returns": "None"
+      },
+      {
+        "type": "function",
+        "name": "_build_claude_command",
+        "class": "ClaudeWrapper",
+        "description": "Build Claude CLI command with optional --dangerously-skip-permissions flag",
+        "args": [
+          {
+            "name": "prompt",
+            "type": "str"
+          }
+        ],
+        "returns": "List[str]"
+      },
+      {
+        "type": "function",
+        "name": "_log_request_start",
+        "class": "ClaudeWrapper",
+        "description": "Log request start with warning if bypass_permissions is enabled",
+        "args": [
+          {
+            "name": "prompt",
+            "type": "str"
+          }
+        ],
+        "returns": "None"
+      }
+    ]
+  },
+  "validationCommand": [
+    "pytest",
+    "tests/test_task_029_bypass_permissions_flag.py",
+    "-v"
+  ]
+}

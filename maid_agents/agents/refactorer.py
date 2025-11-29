@@ -287,6 +287,7 @@ CRITICAL: Use your file editing tools to directly update these files:
             timeout=self.claude.timeout,
             temperature=self.claude.temperature,
             system_prompt=prompts["system_prompt"],
+            bypass_permissions=self.claude.bypass_permissions,
         )
 
         self.logger.debug("Calling Claude to refactor code with split prompts...")

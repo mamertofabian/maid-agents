@@ -78,6 +78,7 @@ class MAIDOrchestrator:
         test_designer: Optional[TestDesigner] = None,
         validation_runner: Optional[ValidationRunner] = None,
         dry_run: bool = False,
+        bypass_permissions: bool = False,
     ):
         """Initialize orchestrator.
 
@@ -87,6 +88,7 @@ class MAIDOrchestrator:
             test_designer: Test designer agent (creates default if None)
             validation_runner: Validation runner (creates default if None)
             dry_run: If True, skip all file write operations (for testing)
+            bypass_permissions: If True, bypass Claude permissions (dangerous!)
         """
         self._state = WorkflowState.INIT
         self.dry_run = dry_run
@@ -95,7 +97,9 @@ class MAIDOrchestrator:
         if claude is None:
             if dry_run:
                 # In dry_run mode, mock is appropriate for testing
-                claude = ClaudeWrapper(mock_mode=True)
+                claude = ClaudeWrapper(
+                    mock_mode=True, bypass_permissions=bypass_permissions
+                )
                 logger.info(
                     "🧪 TEST MODE: Using mock Claude wrapper (dry_run=True). "
                     "No real API calls will be made."
