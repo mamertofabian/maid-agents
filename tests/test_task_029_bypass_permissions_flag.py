@@ -15,7 +15,7 @@ class TestClaudeWrapperBypassPermissions:
         """Test that ClaudeWrapper.__init__ accepts bypass_permissions parameter."""
         wrapper = ClaudeWrapper(
             mock_mode=True,
-            model="opus",
+            model="claude-sonnet-4-5",
             timeout=300,
             temperature=0.0,
             system_prompt=None,
@@ -154,7 +154,7 @@ class TestClaudeWrapperBypassPermissions:
         """Test initialization with all parameters including bypass_permissions."""
         wrapper = ClaudeWrapper(
             mock_mode=False,
-            model="opus-4",
+            model="claude-sonnet-4-5",
             timeout=600,
             temperature=0.5,
             system_prompt="Test system prompt",
@@ -162,7 +162,7 @@ class TestClaudeWrapperBypassPermissions:
         )
 
         assert wrapper.mock_mode is False
-        assert wrapper.model == "opus-4"
+        assert wrapper.model == "claude-sonnet-4-5"
         assert wrapper.timeout == 600
         assert wrapper.temperature == 0.5
         assert wrapper.system_prompt == "Test system prompt"

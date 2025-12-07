@@ -51,7 +51,8 @@ class TestFixerInitialization:
         """Test __init__ stores ClaudeWrapper instance."""
         wrapper = ClaudeWrapper(mock_mode=True)
         fixer = Fixer(claude=wrapper, dry_run=True)
-        assert fixer.claude == wrapper
+        # Fixer creates a new instance with Haiku model, so check model instead
+        assert fixer.claude.model == "claude-haiku-4-5"
 
     def test_init_stores_dry_run_flag(self):
         """Test __init__ stores dry_run flag correctly."""

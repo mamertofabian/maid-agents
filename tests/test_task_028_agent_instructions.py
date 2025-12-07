@@ -130,6 +130,7 @@ class TestAgentInstructions:
         mock_claude.model = "test-model"
         mock_claude.timeout = 300
         mock_claude.temperature = 0.0
+        mock_claude.system_prompt = None
         mock_claude.bypass_permissions = False
         refactorer = Refactorer(claude=mock_claude, dry_run=True)
 
@@ -177,6 +178,8 @@ class TestAgentInstructions:
         mock_claude.model = "test-model"
         mock_claude.timeout = 300
         mock_claude.temperature = 0.0
+        mock_claude.system_prompt = None
+        mock_claude.bypass_permissions = False
         refiner = Refiner(claude=mock_claude, dry_run=True)
 
         manifest_data = {

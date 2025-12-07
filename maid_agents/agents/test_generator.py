@@ -21,7 +21,15 @@ class TestGenerator:
         Args:
             claude: Claude wrapper for AI generation
         """
-        self.claude = claude
+        # Create a separate instance with Haiku model for cost optimization
+        self.claude = ClaudeWrapper(
+            mock_mode=claude.mock_mode,
+            model="claude-haiku-4-5",
+            timeout=claude.timeout,
+            temperature=claude.temperature,
+            system_prompt=claude.system_prompt,
+            bypass_permissions=claude.bypass_permissions,
+        )
         self.validation_runner = ValidationRunner()
 
     def generate_test_from_implementation(

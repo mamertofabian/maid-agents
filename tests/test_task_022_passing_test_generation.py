@@ -192,6 +192,8 @@ def test_fix_failing_tests_calls_claude_with_errors():
     mock_claude.model = "test-model"
     mock_claude.timeout = 300
     mock_claude.temperature = 0.0
+    mock_claude.system_prompt = None
+    mock_claude.bypass_permissions = False
 
     generator = TestGenerator(claude=mock_claude)
 

@@ -23,7 +23,8 @@ def test_test_generator_has_claude_attribute():
     claude = ClaudeWrapper(mock_mode=True)
     generator = TestGenerator(claude=claude)
     assert hasattr(generator, "claude")
-    assert generator.claude is claude
+    # TestGenerator creates a new instance with Haiku model, so check model instead
+    assert generator.claude.model == "claude-haiku-4-5"
 
 
 def test_generate_test_from_implementation_method_exists():

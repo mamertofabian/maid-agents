@@ -27,7 +27,7 @@ class ClaudeWrapper:
     """Wraps Claude Code headless CLI invocations."""
 
     # Constants
-    DEFAULT_MODEL = "opus"
+    DEFAULT_MODEL = "claude-sonnet-4-5"
     DEFAULT_TIMEOUT = 300
     DEFAULT_TEMPERATURE = 0.0
     MAX_PREVIEW_LENGTH = 300
@@ -61,7 +61,7 @@ class ClaudeWrapper:
 
         Args:
             mock_mode: If True, returns mock responses without calling Claude
-            model: Claude model to use (e.g., "opus")
+            model: Claude model to use (e.g., "claude-sonnet-4-5")
             timeout: Request timeout in seconds (default: 300)
             temperature: Sampling temperature 0.0-1.0 (default: 0.0 for deterministic)
             system_prompt: Additional system prompt to append (uses --append-system-prompt)
